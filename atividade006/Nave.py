@@ -10,7 +10,7 @@ TRIANGLE_COLOR = (255, 182, 193)
 TRIANGLE_SIZE = 60
 ROTATION_SPEED = 3
 MOVEMENT_SPEED = 5
-BRAKE = 0
+BREAK = 0
 
 def rotate_point(point, angle_degrees):
     angle_radians = math.radians(angle_degrees)
@@ -56,25 +56,25 @@ class Triangle:
         angle_radians = math.radians(self.angle)
         dx = math.sin(angle_radians) * MOVEMENT_SPEED
         dy = -math.cos(angle_radians) * MOVEMENT_SPEED
-
-        if BRAKE == 0:
+        if BREAK == 0:
             # Continuous movement mode
             if direction == "forward":
                 self.moving = True
             elif direction == "stop":
                 self.moving = False
-            
+
             if self.moving:
                 self.position[0] += dx
                 self.position[1] += dy
         else:
-            # Move only when pressed mode
+            # Momentary movement mode
             if direction == "forward":
                 self.position[0] += dx
                 self.position[1] += dy
 
 def main():
     # Main loop.
+    global BREAK
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Rotating and Moving Triangle")
@@ -90,6 +90,10 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            # Detect keydown once to toggle BREAK when DOWN is pressed
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_DOWN:
+                    BREAK = 1 - BREAK
 
         # Handle keyboard input
         keys = pygame.key.get_pressed()
@@ -98,18 +102,17 @@ def main():
         if keys[pygame.K_RIGHT]:
             triangle.rotate("right")
         
-        if BRAKE == 0:
-            # Continuous movement mode
+        if keys[pygame.K_DOWN]:
+            triangle.move("stop")
+
+        if BREAK == 0:
             if keys[pygame.K_UP]:
                 triangle.move("forward")
-            elif keys[pygame.K_DOWN]:
-                triangle.move("stop")
         else:
-            # Move only when pressed mode
+            # Momentary mode: move only while UP is pressed
             if keys[pygame.K_UP]:
                 triangle.move("forward")
-        
-        # Always call move to handle continuous movement
+
         triangle.move()
 
         # Draw the triangle
