@@ -10,6 +10,7 @@ TRIANGLE_COLOR = (255, 182, 193)
 TRIANGLE_SIZE = 60
 ROTATION_SPEED = 3
 MOVEMENT_SPEED = 5
+BRAKE = 0
 
 def rotate_point(point, angle_degrees):
     angle_radians = math.radians(angle_degrees)
@@ -25,6 +26,7 @@ class Triangle:
     def __init__(self, position):
         self.position = [float(position[0]), float(position[1])]
         self.angle = 0.0
+        self.moving = False
         self.local_points = [
             (0.0, -TRIANGLE_SIZE),
             (-TRIANGLE_SIZE / 2.0, TRIANGLE_SIZE / 2.0),
@@ -49,18 +51,27 @@ class Triangle:
         elif direction == "right":
             self.angle = (self.angle + ROTATION_SPEED) % 360.0
 
-    def move(self, direction):
-        # Move the triangle forward or backward relative to its angle.
+    def move(self, direction=None):
+        # Move the triangle forward relative to its angle.
         angle_radians = math.radians(self.angle)
         dx = math.sin(angle_radians) * MOVEMENT_SPEED
         dy = -math.cos(angle_radians) * MOVEMENT_SPEED
 
-        if direction == "forward":
-            self.position[0] += dx
-            self.position[1] += dy
-        elif direction == "backward":
-            self.position[0] -= dx
-            self.position[1] -= dy
+        if BRAKE == 0:
+            # Continuous movement mode
+            if direction == "forward":
+                self.moving = True
+            elif direction == "stop":
+                self.moving = False
+            
+            if self.moving:
+                self.position[0] += dx
+                self.position[1] += dy
+        else:
+            # Move only when pressed mode
+            if direction == "forward":
+                self.position[0] += dx
+                self.position[1] += dy
 
 def main():
     # Main loop.
@@ -86,10 +97,20 @@ def main():
             triangle.rotate("left")
         if keys[pygame.K_RIGHT]:
             triangle.rotate("right")
-        if keys[pygame.K_UP]:
-            triangle.move("forward")
-        if keys[pygame.K_DOWN]:
-            triangle.move("backward")
+        
+        if BRAKE == 0:
+            # Continuous movement mode
+            if keys[pygame.K_UP]:
+                triangle.move("forward")
+            elif keys[pygame.K_DOWN]:
+                triangle.move("stop")
+        else:
+            # Move only when pressed mode
+            if keys[pygame.K_UP]:
+                triangle.move("forward")
+        
+        # Always call move to handle continuous movement
+        triangle.move()
 
         # Draw the triangle
         pygame.draw.polygon(
