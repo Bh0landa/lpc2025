@@ -236,11 +236,6 @@ class Triangle:
 
 
 class GameState:
-    """Encapsulate two triangles, bullets and scores.
-
-    Provides helper methods to handle keyboard input, advance the game step
-    (move bullets, decrement cooldowns, detect hits) and draw everything.
-    """
     def __init__(self):
         # two players
         self.triangle1 = Triangle(position=(WIDTH // 3, HEIGHT // 2))
@@ -253,7 +248,6 @@ class GameState:
         self.font = pygame.font.Font(None, 36)
 
     def handle_input(self, keys):
-        """Apply keyboard input to triangles (rotate/move/shoot)."""
         # triangle1 (red) uses WASD; triangle2 (blue) uses arrow keys
         if keys[pygame.K_a]:
             self.triangle1.rotate('left')
@@ -288,7 +282,6 @@ class GameState:
         return (x, y)
 
     def step(self):
-        """Advance bullets, cooldowns and detect hits between bullets and triangles."""
         # update bullets and cooldowns
         for t in (self.triangle1, self.triangle2):
             for b in list(t.bullets):
@@ -340,7 +333,6 @@ class GameState:
                     pass
 
     def draw(self, surface):
-        """Draw bullets, triangles and scores onto the given surface."""
         # bullets
         for t in (self.triangle1, self.triangle2):
             for b in t.bullets:
