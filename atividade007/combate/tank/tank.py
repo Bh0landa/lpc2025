@@ -2,7 +2,6 @@ import os
 import sys
 import pygame
 
-# Make sure the parent folder (combate) is importable so we can import core
 HERE = os.path.dirname(__file__)
 PARENT = os.path.abspath(os.path.join(HERE, '..'))
 if PARENT not in sys.path:
