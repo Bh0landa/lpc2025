@@ -53,7 +53,7 @@ class MegaManX(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.rect.center = old_center
         current_frame = int(self.current)
-        # trigger a shot only when we transition into frame 6
+        # trigger a shot only when we transition into frame 7
         if current_frame != self.prev_frame and current_frame == 7:
             self.spawn_shot = True
         else:
