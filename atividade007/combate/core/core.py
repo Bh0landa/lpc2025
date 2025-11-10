@@ -136,7 +136,6 @@ class Triangle:
 
     def rotate(self, direction):
         # Adjust the triangle angle left or right.
-        # cannot rotate while stunned
         if self.stunned > 0:
             return
         if direction == "left":
