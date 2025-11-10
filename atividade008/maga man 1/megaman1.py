@@ -3,255 +3,243 @@ import pygame
 from pygame.locals import *
 from sys import exit
 
+# --- Configuration and Initialization ---
 pygame.init()
 
-# --- Global Settings (PEP 8 standard: CONSTANTS_UPPER_SNAKE_CASE) ---
 SCREEN_W = 640
 SCREEN_H = 480
 COLOR_BLACK = (0, 0, 0)
 FPS = 60
-
-# --- Game Logic Constants ---
 GROUND_Y = SCREEN_H - 50
 
-# --- Initialization ---
 main_screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
 pygame.display.set_caption('Mega Man X Tribute')
 game_clock = pygame.time.Clock()
 
-# --- Asset Loading ---
-script_dir = os.path.dirname(__file__)
-assets_directory = os.path.join(script_dir, 'mega_man')
+SCRIPT_DIR = os.path.dirname(__file__)
+ASSET_DIR = os.path.join(SCRIPT_DIR, 'mega_man')
 
-# Load Background Image (Adjusted path)
+# --- Background Loading ---
 try:
-    background_path = os.path.join(assets_directory, 'bckg.png')
-    background_img = pygame.image.load(background_path).convert()
+    bg_path = os.path.join(ASSET_DIR, 'bckg.png')
+    background_img = pygame.image.load(bg_path).convert()
     background_img = pygame.transform.scale(background_img, (SCREEN_W, SCREEN_H))
-except pygame.error as e:
-    print(f"Error loading background image (bckg.png): {e}")
+except pygame.error:
     background_img = None
 
 
+# --- Protagonist Class ---
 class Protagonist(pygame.sprite.Sprite):
-    """Represents the player character, Mega Man X."""
+    """Main character entity. Handles movement, jumping, running, and shooting."""
+
     def __init__(self):
         super().__init__()
-        
-        self.animation_frames: list[pygame.Surface] = []
-        scale_val = 3.0
-        self.num_run_frames = 8
 
-        # Load sprites (1 to 8) from the 'mega_man' folder
-        for i in range(1, self.num_run_frames + 1):
-            file_name = f'sprite_{i}.png'
-            file_path = os.path.join(assets_directory, file_name)
-            sprite_image: pygame.Surface = pygame.image.load(file_path).convert_alpha()
-            w, h = sprite_image.get_size()
-            new_dim = (int(w * scale_val), int(h * scale_val))
-            sprite_image = pygame.transform.smoothscale(sprite_image, new_dim)
-            self.animation_frames.append(sprite_image)
+        # Sprite setup and scaling
+        self.scale_val = 3.0
+        self.frames_walk = [self._load_sprite(i) for i in range(1, 4)]
+        self.frames_run = [self._load_sprite(i) for i in range(4, 7)]
+        self.jump_image = self._load_sprite(7)
+        self.shoot_image = self._load_sprite(8)
 
-        # Initial state setup
+        # Animation state
         self.frame_index = 0.0
         self.anim_speed = 0.25
-        self.image: pygame.Surface = self.animation_frames[int(self.frame_index)]
-        self.rect: pygame.Rect = self.image.get_rect()
+        self.image = self.frames_walk[0]
+        self.rect = self.image.get_rect()
         self.rect.center = (SCREEN_W // 2, GROUND_Y - self.rect.height // 2)
 
-        # Movement variables
+        # Movement control
         self.speed_x = 0
         self.speed_y = 0
-        self.walk_speed = 5
+        self.walk_speed = 4
+        self.run_speed = 8
         self.jump_power = -15
         self.gravity = 1
         self.on_ground = True
         self.facing_right = True
+        self.is_running = False
 
-        # Shooting variables
+        # Shooting control
         self.is_shooting = False
-        self.shot_frame_index = 6
-        self.prev_frame_idx = -1
-        self.should_fire = False
+        self.last_shot_time = 0
+        self.shot_delay = 250  # milliseconds between shots when holding
+
+        # Run timing - hold for 2000 ms to enable run
+        self.hold_start_time = None
+        self.hold_threshold = 100  # ms
+
+    def _load_sprite(self, index: int) -> pygame.Surface:
+        """Load and scale a sprite image from disk."""
+        path = os.path.join(ASSET_DIR, f'sprite_{index}.png')
+        sprite = pygame.image.load(path).convert_alpha()
+        w, h = sprite.get_size()
+        return pygame.transform.smoothscale(
+            sprite, (int(w * self.scale_val), int(h * self.scale_val))
+        )
 
     def jump(self):
-        """Initiates a jump if the character is on the ground."""
+        """Apply vertical impulse when grounded."""
         if self.on_ground:
             self.speed_y = self.jump_power
             self.on_ground = False
 
-    def shoot(self):
-        """Starts the shooting animation sequence."""
-        if not self.is_shooting:
-            self.is_shooting = True
-            # Reset animation to start the cycle, ensuring shot trigger
-            self.frame_index = 0.0 
-
     def update(self):
-        """Updates the character's movement, animation, and state."""
-        
-        # 1. Apply Gravity and Vertical Movement
+        """Update physics, movement and select current frame."""
+        # Apply gravity and vertical movement
         self.speed_y += self.gravity
         self.rect.y += self.speed_y
 
-        # 2. Ground Collision Check
+        # Ground collision
         if self.rect.bottom >= GROUND_Y:
             self.rect.bottom = GROUND_Y
             self.speed_y = 0
             self.on_ground = True
-            
-        # 3. Horizontal Movement
+
+        # Horizontal movement and clamp on-screen
         self.rect.x += self.speed_x
+        self.rect.x = max(0, min(self.rect.x, SCREEN_W - self.rect.width))
 
-        # 4. Screen Boundaries
-        if self.rect.left < 0:
-            self.rect.left = 0
-        if self.rect.right > SCREEN_W:
-            self.rect.right = SCREEN_W
-
-        # 5. Animation Logic
-        
-        if self.is_shooting:
-            # Continue animation (Run cycle is also the shooting cycle in this setup)
-            self.frame_index += self.anim_speed
-            if self.frame_index >= self.num_run_frames:
-                self.frame_index = 0.0 # Loop the run/shoot cycle
-        elif self.speed_x != 0 and self.on_ground:
-            # Running animation
-            self.frame_index += self.anim_speed
-            if self.frame_index >= self.num_run_frames:
-                self.frame_index = 0.0
-        else:
-            # IDLE animation (First frame)
-            self.frame_index = 0.0
-            self.is_shooting = False
-
-        current_frame_idx = int(self.frame_index)
-
-        # 6. Sprite Update and Flip
+        # Choose and set sprite frame
         old_center = self.rect.center
-        
-        # Get the current frame (using modulo to ensure index stays within range)
-        raw_image = self.animation_frames[current_frame_idx % self.num_run_frames]
-        
-        # Apply horizontal flip based on facing direction
-        if not self.facing_right:
-            self.image = pygame.transform.flip(raw_image, True, False)
-        else:
-            self.image = raw_image
+        frame = self._select_frame()
+        self.image = pygame.transform.flip(frame, not self.facing_right, False)
+        self.rect = self.image.get_rect(center=old_center)
 
-        self.rect = self.image.get_rect()
-        self.rect.center = old_center
+    def _select_frame(self) -> pygame.Surface:
+        #etermine which frame to render.
+        if not self.on_ground:
+            return self.jump_image
 
-        # 7. Shooting Trigger Logic
-        # Fire only when transitioning into the shot frame (index 6)
-        if (self.is_shooting and 
-            current_frame_idx != self.prev_frame_idx and 
-            current_frame_idx == self.shot_frame_index):
-            
-            self.should_fire = True
-            self.is_shooting = False # Disable shooting state after trigger
-        else:
-            self.should_fire = False
-            
-        self.prev_frame_idx = current_frame_idx
+        if self.is_shooting:
+            # Keep shooting sprite displayed while the shoot key is held.
+            return self.shoot_image
+
+        if self.speed_x != 0:
+            # Advance animation index and return appropriate frame set.
+            self.frame_index += self.anim_speed
+            frames = self.frames_run if self.is_running else self.frames_walk
+            if self.frame_index >= len(frames):
+                self.frame_index = 0.0
+            return frames[int(self.frame_index)]
+
+        # Idle frame
+        self.frame_index = 0.0
+        return self.frames_walk[0]
 
 
+# --- Projectile Class ---
 class Projectile(pygame.sprite.Sprite):
-    """Represents a shot fired by the Protagonist."""
-    # Added 'direction' argument to control shot direction based on character facing
-    def __init__(self, start_x: int, start_y: int, velocity: float = 8.0, direction: int = 1):
+    """Projectile fired by protagonist."""
+
+    def __init__(self, x, y, direction):
         super().__init__()
-        script_base_dir = os.path.dirname(__file__)
-        assets_dir_shot = os.path.join(script_base_dir, 'shot')
-        shot_path = os.path.join(assets_dir_shot, 'sprite_shot.png')
-        shot_img_raw = pygame.image.load(shot_path).convert_alpha()
-        
-        scale_val = 3
-        new_shot_size = (int(shot_img_raw.get_width() * scale_val), 
-                         int(shot_img_raw.get_height() * scale_val))
-        self.image = pygame.transform.smoothscale(shot_img_raw, new_shot_size)
-        
-        # Flip projectile image if shooting left
+
+        path = os.path.join(SCRIPT_DIR, 'shot', 'sprite_shot.png')
+        shot_img = pygame.image.load(path).convert_alpha()
+        shot_img = pygame.transform.smoothscale(
+            shot_img,
+            (int(shot_img.get_width() * 2.5), int(shot_img.get_height() * 2.5)),
+        )
         if direction == -1:
-            self.image = pygame.transform.flip(self.image, True, False)
-            
-        self.rect = self.image.get_rect()
-        self.pos_x = float(start_x)
-        self.rect.center = (int(self.pos_x), int(start_y))
-        
-        self.vel_x = float(velocity * direction)
+            shot_img = pygame.transform.flip(shot_img, True, False)
+
+        self.image = shot_img
+        self.rect = self.image.get_rect(center=(x, y))
+        self.direction = direction
+        self.speed = 10.0
+        # small translucent circular trail surface
+        self.trail = pygame.Surface((8, 8), pygame.SRCALPHA)
+        pygame.draw.circle(self.trail, (100, 200, 255, 150), (4, 4), 4)
 
     def update(self):
-        """Updates the projectile's position."""
-        self.pos_x += self.vel_x
-        self.rect.x = int(self.pos_x)
-        
-        # Remove shot when it goes off screen
-        if self.rect.left > SCREEN_W or self.rect.right < 0:
+        """Advance projectile and render trail; destroy when off-screen."""
+        self.rect.x += self.speed * self.direction
+        main_screen.blit(self.trail, (self.rect.centerx - 4, self.rect.centery - 4))
+        if self.rect.right < 0 or self.rect.left > SCREEN_W:
             self.kill()
 
-# --- Game Setup ---
-all_game_objects = pygame.sprite.Group()
-main_character = Protagonist()
-all_game_objects.add(main_character)
-projectile_group = pygame.sprite.Group()
+
+# --- Game Initialization ---
+player = Protagonist()
+all_sprites = pygame.sprite.Group(player)
+shots = pygame.sprite.Group()
 
 # --- Main Game Loop ---
 while True:
-    # 1. Draw Background
+    # Draw background
     if background_img:
         main_screen.blit(background_img, (0, 0))
     else:
         main_screen.fill(COLOR_BLACK)
-        
-    # 2. Event Handling
+
+    keys = pygame.key.get_pressed()
+    current_time = pygame.time.get_ticks()
+
     for event in pygame.event.get():
         if event.type == QUIT:
             pygame.quit()
             exit()
-        
-        # Key Press (KEYDOWN) logic
+
+        # Key press events
         if event.type == KEYDOWN:
-            if event.key == K_a or event.key == K_LEFT:
-                main_character.speed_x = -main_character.walk_speed
-                main_character.facing_right = False
-            elif event.key == K_d or event.key == K_RIGHT:
-                main_character.speed_x = main_character.walk_speed
-                main_character.facing_right = True
-            elif event.key == K_w or event.key == K_UP:
-                main_character.jump()
-            elif event.key == K_e:
-                main_character.shoot()
+            if event.key in (K_a, K_LEFT):
+                player.facing_right = False
+                player.speed_x = -player.walk_speed
+                # record time when movement key first pressed
+                player.hold_start_time = current_time
 
-        # Key Release (KEYUP) logic
+            elif event.key in (K_d, K_RIGHT):
+                player.facing_right = True
+                player.speed_x = player.walk_speed
+                player.hold_start_time = current_time
+
+            elif event.key in (K_w, K_UP):
+                player.jump()
+
+            elif event.key in (K_e, K_SPACE):
+                player.is_shooting = True
+                player.last_shot_time = 0
+
+        # Key release events
         if event.type == KEYUP:
-            if (event.key == K_a or event.key == K_LEFT or 
-                    event.key == K_d or event.key == K_RIGHT):
-                main_character.speed_x = 0
-            
-    # 3. Update Sprites
-    all_game_objects.update()
-    
-    # 4. Shooting Logic
-    if getattr(main_character, 'should_fire', False):
-        x_offset = 40
-        y_offset = -2
-        
-        # Determine shot direction and adjust spawn point
-        shot_direction = 1 if main_character.facing_right else -1
-        spawn_x = main_character.rect.centerx + (x_offset * shot_direction)
-        
-        shot_instance = Projectile(spawn_x, 
-                                   main_character.rect.centery + y_offset, 
-                                   direction=shot_direction)
-        projectile_group.add(shot_instance)
+            if event.key in (K_a, K_LEFT, K_d, K_RIGHT):
+                player.speed_x = 0
+                player.is_running = False
+                player.hold_start_time = None
 
-    # 5. Draw Objects
-    projectile_group.update()
-    projectile_group.draw(main_screen)
-    all_game_objects.draw(main_screen)
-    
-    # 6. Update Display and Cap FPS
+            elif event.key in (K_e, K_SPACE):
+                player.is_shooting = False
+                player.last_shot_time = current_time
+
+    # Running: check if movement key has been held long enough
+    if player.hold_start_time is not None:
+        elapsed = current_time - player.hold_start_time
+        player.is_running = elapsed >= player.hold_threshold
+        if player.is_running:
+            # maintain run speed while running state is active
+            player.speed_x = player.run_speed if player.facing_right else -player.run_speed
+
+    # Shooting: spawn projectiles repeatedly while shoot key is held,
+    # subject to shot_delay interval. This keeps shoot_image visible as long
+    # as the key is held and produces repeated shots at shot_delay cadence.
+    if player.is_shooting:
+        if current_time - player.last_shot_time >= player.shot_delay:
+            x_offset = 45 * (1 if player.facing_right else -1)
+            y_offset = -2
+            shot = Projectile(
+                player.rect.centerx + x_offset,
+                player.rect.centery + y_offset,
+                1 if player.facing_right else -1,
+            )
+            shots.add(shot)
+            all_sprites.add(shot)
+            player.last_shot_time = current_time
+
+    # Update and draw sprites
+    all_sprites.update()
+    all_sprites.draw(main_screen)
+
+    # Flip display and cap FPS
     pygame.display.flip()
     game_clock.tick(FPS)
