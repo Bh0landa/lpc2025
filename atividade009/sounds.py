@@ -5,9 +5,7 @@ import struct
 import wave
 import pygame as pg
 
-# Simple sound effects module. Generates sounds in memory so the game does not
-# depend on external WAV files. If the audio mixer cannot initialize, the
-# module becomes a no-op and the game continues silently.
+# Simple sound effects module. Generates sounds in memory
 
 _initialized = False
 _sfx = {}
