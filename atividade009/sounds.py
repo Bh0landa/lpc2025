@@ -18,12 +18,12 @@ def init():
     try:
         pg.mixer.init()
     except Exception:
-        # Se o mixer não inicializar por qualquer motivo, continuamos sem som
+        # If the mixer fails to initialize for any reason, continue without sound
         _initialized = True
         return
     # Tentar criar sons em memória (não depender de arquivos no disco).
     keys = ["shot", "explosion", "ufo_spawn", "ufo_shot"]
-    # Gerar WAVs em memória (BytesIO) para todos os efeitos — sem dependência externa
+    # Generate WAVs in memory (BytesIO) for all effects — no external file dependency
     for key in keys:
         sound_obj = None
         try:
@@ -50,7 +50,7 @@ def _play(key: str, volume: float = 0.8):
 
 
 def _synthesize_wav(path: str, key: str):
-    # Gera um tom simples diferente por key e salva como WAV mono 16-bit
+    # Generate a simple tone per key and save as a mono 16-bit WAV
     duration = 0.25
     framerate = 22050
     amplitude = 16000
@@ -68,7 +68,7 @@ def _synthesize_wav(path: str, key: str):
         wf.setframerate(framerate)
         for i in range(nframes):
             t = i / framerate
-            # envelope simples para explosion: decaimento mais rápido
+            # simple envelope for 'explosion': faster decay
             if key == "explosion":
                 env = max(0.0, 1.0 - t / duration)
                 sample = int(amplitude * env * math.sin(2 * math.pi * freq * t) * (1.0 - t / duration))
@@ -81,7 +81,7 @@ def _synthesize_wav(path: str, key: str):
 
 
 def _synthesize_wav_bytes(key: str) -> io.BytesIO:
-    """Gera um WAV em memória (BytesIO) e retorna o buffer pronto para leitura."""
+    #Generate a WAV in memory (BytesIO) and return the buffer ready for reading.
     duration = 0.25
     framerate = 22050
     amplitude = 16000
@@ -114,8 +114,8 @@ def _synthesize_wav_bytes(key: str) -> io.BytesIO:
 
 
 def _synthesize_samples_numpy(key: str):
-    """Retorna um ndarray int16 mono com amostras do som gerado."""
-    # função removida: preservamos assinatura para compatibilidade, mas não usamos numpy
+    #Return an int16 mono ndarray with samples of the generated sound.
+    # function removed: keep signature for compatibility, but numpy is not used
     raise RuntimeError("numpy-based synthesis not available")
 
 

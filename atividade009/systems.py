@@ -51,14 +51,14 @@ class World:
         # Adjust spawn direction: small UFOs will point (more) toward the player;
         # big UFOs will travel toward the opposite side of the spawn edge
         if small:
-            # direção aproximada para o jogador
+            # approximate direction toward the player
             to_player = (self.ship.pos - ufo.pos)
             if to_player.length() > 0:
                 to_player = to_player.normalize()
-                # blend entre direção inicial e direção ao jogador usando aim
+                # blend between initial direction and direction to player using aim
             ufo.dir = (ufo.dir * (1 - ufo.aim) + to_player * ufo.aim).normalize()
         else:
-            # se nasceu na borda esquerda, vai para a direita, e vice-versa
+            # if spawned on the left edge, go right, and vice versa
             ufo.dir = Vec(1, 0) if x == 0 else Vec(-1, 0)
 
         sounds.play_ufo_spawn()
@@ -82,7 +82,7 @@ class World:
         self.score = max(0, self.score - C.HYPERSPACE_COST)
 
     def update(self, dt: float, keys):
-        # Atualiza sprites (UFObullets e bullets também)
+        # Update sprites (including UFObullets and bullets)
         self.all_sprites.update(dt)
         self.ufo_bullets.update(dt)
         self.ship.control(keys, dt)
@@ -101,9 +101,9 @@ class World:
             # decrement cooldown
             if hasattr(ufo, 'fire_cool'):
                 ufo.fire_cool = max(0.0, ufo.fire_cool - dt)
-                # tentativa de atirar: probabilidade baseada na aim e cooldown
+                # attempt to fire: probability based on aim and cooldown
                 if ufo.fire_cool <= 0:
-                    # cria projétil apontando para jogador (com ruído)
+                    # create projectile aimed at the player (with noise)
                     dir_to_player = (self.ship.pos - ufo.pos)
                     if dir_to_player.length() == 0:
                         dir_to_player = rand_unit_vec()
@@ -171,7 +171,7 @@ class World:
                     ufo.kill()
                     b.kill()
 
-        # Verifica projéteis inimigos acertando a nave
+        # Check enemy projectiles hitting the ship
         for b in list(self.ufo_bullets):
             if (b.pos - self.ship.pos).length() < (b.r + self.ship.r) and self.ship.invuln <= 0:
                 b.kill()
