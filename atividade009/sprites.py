@@ -1,4 +1,3 @@
-
 import math
 from random import uniform
 
@@ -126,10 +125,10 @@ class UFO(pg.sprite.Sprite):
         self.speed = C.UFO_SPEED
         self.rect = pg.Rect(0, 0, self.r * 2, self.r * 2)
         self.dir = Vec(1, 0) if uniform(0, 1) < 0.5 else Vec(-1, 0)
-        # cooldown para tiros da nave inimiga
+        # cooldown for enemy ship shooting
         self.fire_cool = 0.0
         self.fire_rate = 2.5 if small else 4.0
-        # parâmetro de mira (0..1) — quanto da direção ao jogador será adotada
+        # aim factor (0..1) — how strongly the UFO aims toward the player
         self.aim = C.UFO_SMALL["aim"] if small else C.UFO_BIG["aim"]
 
     def update(self, dt: float):

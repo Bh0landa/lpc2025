@@ -1,4 +1,3 @@
-
 import math
 from random import uniform
 
@@ -49,15 +48,15 @@ class World:
         y = uniform(0, C.HEIGHT)
         x = 0 if uniform(0, 1) < 0.5 else C.WIDTH
         ufo = UFO(Vec(x, y), small)
-        # Ajusta direção de spawn: nave pequena apontará (mais) para o jogador;
-        # nave grande irá para o lado oposto da borda (se spawn à esquerda -> direita)
+        # Adjust spawn direction: small UFOs will point (more) toward the player;
+        # big UFOs will travel toward the opposite side of the spawn edge
         if small:
             # direção aproximada para o jogador
             to_player = (self.ship.pos - ufo.pos)
             if to_player.length() > 0:
                 to_player = to_player.normalize()
                 # blend entre direção inicial e direção ao jogador usando aim
-                ufo.dir = (ufo.dir * (1 - ufo.aim) + to_player * ufo.aim).normalize()
+            ufo.dir = (ufo.dir * (1 - ufo.aim) + to_player * ufo.aim).normalize()
         else:
             # se nasceu na borda esquerda, vai para a direita, e vice-versa
             ufo.dir = Vec(1, 0) if x == 0 else Vec(-1, 0)
@@ -97,7 +96,7 @@ class World:
             self.spawn_ufo()
             self.ufo_timer = C.UFO_SPAWN_EVERY
 
-        # Fazer UFOs tentarem atirar
+        # Make UFOs attempt to shoot
         for ufo in list(self.ufos):
             # decrement cooldown
             if hasattr(ufo, 'fire_cool'):
@@ -110,7 +109,7 @@ class World:
                         dir_to_player = rand_unit_vec()
                     else:
                         dir_to_player = dir_to_player.normalize()
-                    # small UFO tem melhor precisão
+                    # small UFOs have better accuracy
                     aim = ufo.aim if hasattr(ufo, 'aim') else 0.3
                     fire_dir = (ufo.dir * (1 - aim) + dir_to_player * aim).normalize()
                     vel = fire_dir * (C.SHIP_BULLET_SPEED * 0.8)
@@ -152,7 +151,7 @@ class World:
                     self.ship_die()
                     break
 
-        # UFOs destruídas ao colidir com asteroides
+        # Destroy UFOs when they collide with asteroids
         for ufo in list(self.ufos):
             for ast in list(self.asteroids):
                 if (ast.pos - ufo.pos).length() < (ast.r + ufo.r):

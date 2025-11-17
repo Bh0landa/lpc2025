@@ -5,8 +5,9 @@ import struct
 import wave
 import pygame as pg
 
-# Módulo simples de efeitos sonoros. Tenta carregar arquivos WAV da pasta `sounds/`.
-# Se os arquivos não existirem, as funções serão no-ops para não quebrar o jogo.
+# Simple sound effects module. Generates sounds in memory so the game does not
+# depend on external WAV files. If the audio mixer cannot initialize, the
+# module becomes a no-op and the game continues silently.
 
 _initialized = False
 _sfx = {}

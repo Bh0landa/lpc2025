@@ -1,4 +1,3 @@
-
 import math
 from random import random, uniform
 from typing import Iterable, Tuple

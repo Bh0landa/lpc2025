@@ -20,7 +20,7 @@ class Game:
         if C.RANDOM_SEED is not None:
             random.seed(C.RANDOM_SEED)
         self.screen = pg.display.set_mode((C.WIDTH, C.HEIGHT))
-        pg.display.set_caption("Asteroides")
+        pg.display.set_caption("Asteroids")
         self.clock = pg.time.Clock()
         self.font = pg.font.SysFont("consolas", 20)
         self.big = pg.font.SysFont("consolas", 48)
@@ -58,10 +58,10 @@ class Game:
             pg.display.flip()
 
     def draw_menu(self):
-        text(self.screen, self.big, "ASTEROIDS",
-             C.WIDTH // 2 - 150, 180)
-        text(self.screen, self.font,
-             "Setas: virar/acelerar  Espaço: tiro  Shift: hiper",
-             160, 300)
-        text(self.screen, self.font,
-             "Pressione qualquer tecla...", 260, 360)
+           text(self.screen, self.big, "ASTEROIDS",
+               C.WIDTH // 2 - 150, 180)
+           text(self.screen, self.font,
+               "Arrows: turn/thrust  Space: shoot  Shift: hyperspace",
+               160, 300)
+           text(self.screen, self.font,
+               "Press any key...", 260, 360)
