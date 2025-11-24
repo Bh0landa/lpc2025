@@ -61,7 +61,10 @@ class Game:
            text(self.screen, self.big, "ASTEROIDS",
                C.WIDTH // 2 - 150, 180)
            text(self.screen, self.font,
-               "Arrows: turn/thrust  Space: shoot  Shift: hyperspace",
+               "Arrows: turn/thrust  Space: shoot  Shift: hyperspace;",
                160, 300)
            text(self.screen, self.font,
-               "Press any key...", 260, 360)
+               "DEVS: Holanda, Clewerton", 
+               160, 328)
+           text(self.screen, self.font,
+               "Press any key...", 260, 380)
