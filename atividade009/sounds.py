@@ -21,7 +21,7 @@ def init():
         # If the mixer fails to initialize for any reason, continue without sound
         _initialized = True
         return
-    # Try to generate sounds in-memory (no external file dependency)
+    # Try to generate sounds in-memory (no external file dependency)c:\Users\berna\Downloads\base.png
     keys = ["shot", "explosion", "ufo_spawn", "ufo_shot"]
     # Generate WAVs in memory (BytesIO) for all effects — no external file dependency
     for key in keys:
