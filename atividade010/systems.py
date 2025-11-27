@@ -4,7 +4,7 @@ from random import uniform
 import pygame as pg
 
 import config as C
-from sprites import Asteroid, Ship, UFO
+from sprites import Asteroid, Ship, UFO, Barrel
 from utils import Vec, rand_edge_pos, rand_unit_vec
 from sprites import UFObullet
 import sounds
@@ -27,6 +27,9 @@ class World:
         self.wave_cool = C.WAVE_DELAY
         self.safe = C.SAFE_SPAWN_TIME
         self.ufo_timer = C.UFO_SPAWN_EVERY
+        self.last_barrel_spawn = 0.0
+        self.next_barrel_spawn = uniform(C.BARREL_SPAWN_INTERVAL_MIN, C.BARREL_SPAWN_INTERVAL_MAX)
+        self.barrels = pg.sprite.Group()
 
     # Inicia uma nova onda com asteroides nas bordas
     def start_wave(self):
@@ -85,7 +88,20 @@ class World:
 
     def update(self, dt: float, keys):
         # Atualiza todos os sprites e timers principais
-        self.all_sprites.update(dt)
+        # UFOs receive the ship position so they can attempt to orbit the player;
+        # other sprites keep the existing update(dt) signature.
+        for spr in list(self.all_sprites):
+            try:
+                if spr.__class__.__name__ == 'UFO':
+                    spr.update(dt, self.ship.pos)
+                else:
+                    spr.update(dt)
+            except TypeError:
+                # Some sprites may implement update(dt, ...) differently; fallback
+                try:
+                    spr.update(dt)
+                except Exception:
+                    pass
         self.ufo_bullets.update(dt)
         self.ship.control(keys, dt)
         # a atualização da nave é feita por all_sprites.update
@@ -96,8 +112,22 @@ class World:
             self.ship.invuln = 0.5
         self.ufo_timer -= dt
         if self.ufo_timer <= 0:
-            self.spawn_ufo()
+            # spawn multiple UFOs per event if configured
+            count = int(getattr(C, 'UFO_SPAWN_COUNT', 1))
+            for _ in range(max(1, count)):
+                self.spawn_ufo()
             self.ufo_timer = C.UFO_SPAWN_EVERY
+
+        # barrel spawn
+        self.last_barrel_spawn += dt
+        if self.last_barrel_spawn >= self.next_barrel_spawn:
+            self.last_barrel_spawn = 0.0
+            self.next_barrel_spawn = uniform(C.BARREL_SPAWN_INTERVAL_MIN, C.BARREL_SPAWN_INTERVAL_MAX)
+            x = uniform(20, C.WIDTH - 20)
+            target_y = uniform(C.HEIGHT * 0.5, C.HEIGHT - 40)
+            barrel = Barrel(x, target_y)
+            self.all_sprites.add(barrel)
+            self.barrels.add(barrel)
 
         # Logica de disparo dos UFOs
         for ufo in list(self.ufos):
@@ -116,6 +146,12 @@ class World:
                     b = UFObullet(ufo.pos + fire_dir * (ufo.r + 6), vel)
                     self.ufo_bullets.add(b)
                     self.all_sprites.add(b)
+                    # mark ufo to display 'shot' frame briefly (if it supports embedded frames)
+                    try:
+                        ufo._show_shot = True
+                        ufo._shot_timer = 0.14
+                    except Exception:
+                        pass
                     ufo.fire_cool = ufo.fire_rate
                     try:
                         sounds.play_ufo_shot()
@@ -144,14 +180,80 @@ class World:
 
         # Colisao entre nave do jogador e objetos se nao estiver invulneravel
         if self.ship.invuln <= 0 and self.safe <= 0:
-            for ast in self.asteroids:
-                if (ast.pos - self.ship.pos).length() < (ast.r + self.ship.r):
-                    self.ship_die()
-                    break
-            for ufo in self.ufos:
-                if (ufo.pos - self.ship.pos).length() < (ufo.r + self.ship.r):
-                    self.ship_die()
-                    break
+            # try pixel-perfect collision using masks when available
+            ship_mask, ship_rect = self.ship.get_mask()
+            if ship_mask is not None:
+                for ast in list(self.asteroids):
+                    ast_mask, ast_rect = ast.get_mask()
+                    if ast_mask is None:
+                        continue
+                    offset = (int(ast_rect.left - ship_rect.left), int(ast_rect.top - ship_rect.top))
+                    if ship_mask.overlap(ast_mask, offset):
+                        self.ship_die()
+                        break
+                else:
+                    for ufo in list(self.ufos):
+                        ufo_mask, ufo_rect = ufo.get_mask()
+                        if ufo_mask is None:
+                            continue
+                        offset = (int(ufo_rect.left - ship_rect.left), int(ufo_rect.top - ship_rect.top))
+                        if ship_mask.overlap(ufo_mask, offset):
+                            self.ship_die()
+                            break
+                    # check barrels with pixel masks
+                    for barrel in list(self.barrels):
+                        bar_mask, bar_rect = barrel.get_mask()
+                        if bar_mask is None:
+                            continue
+                        offset = (int(bar_rect.left - ship_rect.left), int(bar_rect.top - ship_rect.top))
+                        if ship_mask.overlap(bar_mask, offset):
+                            # block traversal: revert ship to previous position if available
+                            try:
+                                prev = getattr(self.ship, '_prev_pos', None)
+                                if prev is not None:
+                                    self.ship.pos = Vec(prev)
+                                else:
+                                    # fallback: push outside slightly
+                                    dirv = (self.ship.pos - barrel.pos)
+                                    if dirv.length() == 0:
+                                        from utils import rand_unit_vec
+                                        dirv = rand_unit_vec()
+                                    dirv_norm = dirv.normalize()
+                                    desired_dist = (barrel.r + self.ship.r) + 1
+                                    self.ship.pos = barrel.pos + dirv_norm * desired_dist
+                                self.ship.vel = Vec(0, 0)
+                            except Exception:
+                                pass
+                            break
+            else:
+                # fallback to distance checks if masks are not available
+                for ast in self.asteroids:
+                    if (ast.pos - self.ship.pos).length() < (ast.r + self.ship.r):
+                        self.ship_die()
+                        break
+                for ufo in self.ufos:
+                    if (ufo.pos - self.ship.pos).length() < (ufo.r + self.ship.r):
+                        self.ship_die()
+                        break
+                # fallback: barrels by radius (non-lethal response)
+                for barrel in self.barrels:
+                    if (barrel.pos - self.ship.pos).length() < (barrel.r + self.ship.r):
+                        try:
+                            prev = getattr(self.ship, '_prev_pos', None)
+                            if prev is not None:
+                                self.ship.pos = Vec(prev)
+                            else:
+                                dirv = (self.ship.pos - barrel.pos)
+                                if dirv.length() == 0:
+                                    from utils import rand_unit_vec
+                                    dirv = rand_unit_vec()
+                                dirv_norm = dirv.normalize()
+                                desired_dist = (barrel.r + self.ship.r) + 1
+                                self.ship.pos = barrel.pos + dirv_norm * desired_dist
+                            self.ship.vel = Vec(0, 0)
+                        except Exception:
+                            pass
+                        break
 
         # Destruir ufos que colidirem com asteroides
         for ufo in list(self.ufos):
@@ -179,6 +281,105 @@ class World:
             if (b.pos - self.ship.pos).length() < (b.r + self.ship.r) and self.ship.invuln <= 0:
                 b.kill()
                 self.ship_die()
+
+        # Colisao entre balas do jogador e barris
+        for b in list(self.bullets):
+            for barrel in list(self.barrels):
+                # attempt to get masks; bullets may not provide masks
+                get_b_mask = getattr(b, 'get_mask', None)
+                if callable(get_b_mask):
+                    m_b = get_b_mask()
+                else:
+                    m_b = (None, None)
+                m_bar = barrel.get_mask()
+                collided = False
+                if m_b and m_b[0] is not None and m_bar and m_bar[0] is not None:
+                    mask_b, rect_b = m_b
+                    mask_bar, rect_bar = m_bar
+                    offset = (rect_b.left - rect_bar.left, rect_b.top - rect_bar.top)
+                    if mask_bar.overlap(mask_b, offset):
+                        collided = True
+                else:
+                    # fallback radius check — also test segment from previous to current
+                    try:
+                        prev = getattr(b, '_prev_pos', None)
+                        cur = b.pos
+                        if prev is None:
+                            dist = (cur - barrel.pos).length()
+                            if dist <= (b.r + barrel.r):
+                                collided = True
+                        else:
+                            # distance from point to segment
+                            pa = barrel.pos
+                            p1 = prev
+                            p2 = cur
+                            seg = p2 - p1
+                            seg_len2 = seg.length_squared()
+                            if seg_len2 == 0:
+                                d = (pa - p1).length()
+                            else:
+                                t = max(0.0, min(1.0, (pa - p1).dot(seg) / seg_len2))
+                                proj = p1 + seg * t
+                                d = (pa - proj).length()
+                            if d <= (b.r + barrel.r):
+                                collided = True
+                    except Exception:
+                        if (b.pos - barrel.pos).length() <= (b.r + barrel.r):
+                            collided = True
+                if collided:
+                    try:
+                        b.kill()
+                    except Exception:
+                        pass
+                    barrel.hit()
+                    break
+
+        # Handle TNT barrel explosion area damage (apply once per explosion)
+        for barrel in list(self.barrels):
+            if getattr(barrel, 'exploded', False) and not getattr(barrel, '_explosion_applied', False):
+                try:
+                    radius = float(getattr(barrel, 'explosion_radius', getattr(C, 'BARREL_TNT_EXPLOSION_RADIUS', 80)))
+                except Exception:
+                    radius = getattr(C, 'BARREL_TNT_EXPLOSION_RADIUS', 80)
+                # Affect asteroids: call split_asteroid to simulate destruction
+                for ast in list(self.asteroids):
+                    if (ast.pos - barrel.pos).length() <= (radius + ast.r):
+                        try:
+                            self.split_asteroid(ast)
+                        except Exception:
+                            try:
+                                ast.kill()
+                            except Exception:
+                                pass
+                # Affect UFOs: kill and award score
+                for ufo in list(self.ufos):
+                    if (ufo.pos - barrel.pos).length() <= (radius + ufo.r):
+                        try:
+                            score = (C.UFO_SMALL["score"] if ufo.small else C.UFO_BIG["score"])
+                            self.score += score
+                        except Exception:
+                            pass
+                        try:
+                            ufo.kill()
+                        except Exception:
+                            pass
+                # Affect ship: apply damage (like a bullet) if within radius
+                try:
+                    if (self.ship.pos - barrel.pos).length() <= (radius + self.ship.r) and self.ship.invuln <= 0:
+                        self.ship_die()
+                except Exception:
+                    pass
+                # Affect other barrels (chain reaction)
+                for other in list(self.barrels):
+                    if other is barrel:
+                        continue
+                    if (other.pos - barrel.pos).length() <= (radius + other.r):
+                        try:
+                            other.hit()
+                        except Exception:
+                            pass
+                # mark applied so it doesn't reapply each frame
+                barrel._explosion_applied = True
 
     def split_asteroid(self, ast: Asteroid):
         # Fragmenta asteroide e concede pontos

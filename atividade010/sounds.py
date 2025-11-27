@@ -1,6 +1,7 @@
 import os
 import io
 import math
+import random
 import struct
 import wave
 import pygame as pg
@@ -60,9 +61,10 @@ def _synthesize_wav(path: str, key: str):
     framerate = 22050
     amplitude = 16000
     if key == "shot":
-        duration = 0.12
-        freq_start = 1400.0
-        freq_end = 900.0
+        # Classic Robotron-style: short, bright pulse with quick rising pitch
+        duration = 0.06
+        freq_start = 800.0
+        freq_end = 3000.0
     else:
         duration = 0.25
 
@@ -81,10 +83,22 @@ def _synthesize_wav(path: str, key: str):
         for i in range(nframes):
             t = i / framerate
             if key == "shot":
-                # quick decaying blip with slight downward pitch sweep
+                # Classic Robotron: strong square-like pulse + harmonics + quick pitch sweep
                 f = freq_start + (freq_end - freq_start) * (t / duration)
-                env = math.exp(-12.0 * (t / duration))
-                sample = int(amplitude * env * math.sin(2 * math.pi * f * t))
+                # agressive envelope for short, punchy blip
+                env = math.exp(-20.0 * (t / duration))
+                # square pulse (harsh) to get many harmonics
+                base = 1.0 if math.sin(2 * math.pi * f * t) >= 0 else -1.0
+                # add a couple harmonics for body
+                h1 = 0.6 * math.sin(2 * math.pi * (2 * f) * t)
+                h2 = 0.35 * math.sin(2 * math.pi * (3 * f) * t)
+                # tiny noise transient at attack
+                noise = (random.random() * 2.0 - 1.0) * math.exp(-80.0 * (t / duration))
+                raw = 0.92 * base + h1 + h2 + 0.18 * noise
+                # light bit crushing (8-bit feel)
+                qlevels = 128.0
+                qval = math.floor((raw + 1.0) * 0.5 * qlevels) / qlevels * 2.0 - 1.0
+                sample = int(amplitude * env * 0.95 * qval)
             elif key == "explosion":
                 env = max(0.0, 1.0 - t / duration)
                 sample = int(
@@ -107,9 +121,11 @@ def _synthesize_wav_bytes(key: str) -> io.BytesIO:
     framerate = 22050
     amplitude = 16000
     if key == "shot":
-        duration = 0.12
-        freq_start = 1400.0
-        freq_end = 900.0
+        # Arcade-lofi Robotron-like blip: short pulse with fast rising pitch,
+        # added noise transient and light bit-crush for 'chip' character
+        duration = 0.06
+        freq_start = 1200.0
+        freq_end = 3000.0
     else:
         duration = 0.25
 
@@ -129,9 +145,24 @@ def _synthesize_wav_bytes(key: str) -> io.BytesIO:
         for i in range(nframes):
             t = i / framerate
             if key == "shot":
+                # fast pitch sweep
                 f = freq_start + (freq_end - freq_start) * (t / duration)
-                env = math.exp(-12.0 * (t / duration))
-                sample = int(amplitude * env * math.sin(2 * math.pi * f * t))
+                # sharp exponential envelope for a punchy blip
+                env = math.exp(-22.0 * (t / duration))
+                # square-ish pulse (harsh) plus a sine harmonic for body
+                s = math.sin(2 * math.pi * f * t)
+                pulse = 1.0 if s >= 0 else -1.0
+                body = 0.85 * pulse + 0.45 * math.sin(2 * math.pi * 1.8 * f * t)
+                # short noise burst at the attack to emulate harsh arcade drivers
+                noise = (random.random() * 2.0 - 1.0) * math.exp(-60.0 * (t / duration))
+                raw = body + 0.25 * noise
+                # apply envelope
+                val = env * raw
+                # bit-crush / quantize to 8-bit-like steps to make it arcade-y
+                levels = 256.0
+                q = math.floor((val + 1.0) * 0.5 * levels) / levels * 2.0 - 1.0
+                # final gentle scaling
+                sample = int(amplitude * 0.9 * q)
             elif key == "explosion":
                 env = max(0.0, 1.0 - t / duration)
                 sample = int(

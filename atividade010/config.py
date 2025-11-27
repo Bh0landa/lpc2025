@@ -19,7 +19,7 @@ SHIP_TURN_SPEED = 220.0  # deg/s
 SHIP_THRUST = 220.0      # px/s^2
 SHIP_SPEED = 220.0       # px/s velocidade de movimento controlada por teclas (W/A/S/D)
 SHIP_FRICTION = 0.995
-SHIP_FIRE_RATE = 0.2     # seconds between shots
+SHIP_FIRE_RATE = 0.10     # seconds between shots
 SHIP_BULLET_SPEED = 420.0
 HYPERSPACE_COST = 250    # negative points cost for hyperspace
 # Pixel-art scale for the player sprite (integer). Use 1..4 depending on desired size.
@@ -42,10 +42,30 @@ BULLET_SPEED = 800.0  # velocidade das balas (px/s)
 
 # Parâmetros de aparecimento e comportamento das naves inimigas
 # UFO
-UFO_SPAWN_EVERY = 15.0  # seconds
-UFO_SPEED = 80.0
+UFO_SPAWN_EVERY = 8.0  # seconds
+UFO_SPEED = 100.0
 UFO_BIG = {"r": 18, "score": 200, "aim": 0.2}
 UFO_SMALL = {"r": 12, "score": 1000, "aim": 0.6}
+# Pixel-art scale for UFO sprites (integer). Increase to make the ovni visually larger.
+UFO_PIXEL_SCALE = 2
+UFO_ORBIT_TANGENTIAL = 0.85  # how much UFO favors tangential (orbit) movement vs radial
+UFO_ORBIT_RADIAL = 0.15     # how much UFO moves inward/outward toward player
+UFO_ORBIT_MAX_TURN = 3.0    # how quickly UFO can change direction (smoothing)
+# Per-UFO random variation (fractional). e.g. 0.25 => +/-25% variation
+UFO_ORBIT_VARIANCE = 0.25
+# How many UFOs to spawn each time the UFO spawn timer fires.
+# Increase this to have multiple UFOs appear at once.
+UFO_SPAWN_COUNT = 3
+
+# Barrel (barril) settings
+BARREL_SPAWN_INTERVAL_MIN = 4.0
+BARREL_SPAWN_INTERVAL_MAX = 12.0
+BARREL_FALL_SPEED = 220.0
+BARREL_PIXEL_SCALE = 2
+BARREL_HP = 1
+# TNT explosion visual + timing (radius in pixels, time in seconds)
+BARREL_TNT_EXPLOSION_RADIUS = 80
+BARREL_TNT_EXPLOSION_TIME = 0.28
 
 # Colors (R, G, B)
 WHITE = (240, 240, 240)
