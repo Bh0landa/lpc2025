@@ -201,4 +201,5 @@ def play_ufo_spawn():
 
 
 def play_ufo_shot():
-    _play("ufo_shot", 0.6)
+    # Use the same shot sound as the player so both sound identical
+    _play("shot", 0.6)

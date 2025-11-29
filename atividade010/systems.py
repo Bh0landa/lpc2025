@@ -23,26 +23,16 @@ class World:
         self.all_sprites = pg.sprite.Group(self.ship)
         self.score = 0
         self.lives = C.START_LIVES
-        self.wave = 0
-        self.wave_cool = C.WAVE_DELAY
+        # continuous spawn: timers to control asteroid spawning
+        self.asteroid_spawn_timer = 0.0
+        self.asteroid_spawn_interval = float(getattr(C, 'AST_SPAWN_INTERVAL_BASE', 1.5))
         self.safe = C.SAFE_SPAWN_TIME
         self.ufo_timer = C.UFO_SPAWN_EVERY
         self.last_barrel_spawn = 0.0
         self.next_barrel_spawn = uniform(C.BARREL_SPAWN_INTERVAL_MIN, C.BARREL_SPAWN_INTERVAL_MAX)
         self.barrels = pg.sprite.Group()
 
-    # Inicia uma nova onda com asteroides nas bordas
-    def start_wave(self):
-        self.wave += 1
-        count = 3 + self.wave
-        for _ in range(count):
-            pos = rand_edge_pos()
-            while (pos - self.ship.pos).length() < 150:
-                pos = rand_edge_pos()
-            ang = uniform(0, math.tau)
-            speed = uniform(C.AST_VEL_MIN, C.AST_VEL_MAX)
-            vel = Vec(math.cos(ang), math.sin(ang)) * speed
-            self.spawn_asteroid(pos, vel, "L")
+    # (Wave system removed) asteroids now spawn continuously; difficulty scales with score
 
     def spawn_asteroid(self, pos: Vec, vel: Vec, size: str):
         # Cria e adiciona um asteroide ao jogo
@@ -112,17 +102,35 @@ class World:
             self.ship.invuln = 0.5
         self.ufo_timer -= dt
         if self.ufo_timer <= 0:
-            # spawn multiple UFOs per event if configured
-            count = int(getattr(C, 'UFO_SPAWN_COUNT', 1))
-            for _ in range(max(1, count)):
+            # difficulty scales with score (higher score -> more frequent spawns)
+            try:
+                difficulty = 1.0 + (float(self.score) / float(getattr(C, 'AST_DIFFICULTY_SCORE_SCALE', 1000.0)))
+            except Exception:
+                difficulty = 1.0
+            try:
+                configured_count = int(getattr(C, 'UFO_SPAWN_COUNT', 1))
+            except Exception:
+                configured_count = 1
+            # determine desired concurrent UFOs (scale slowly with difficulty)
+            desired_concurrent = min(configured_count, 1 + int(difficulty / 2))
+            # spawn only up to the difference between desired and current active UFOs
+            spawn_count = max(0, desired_concurrent - len(self.ufos))
+            for _ in range(spawn_count):
                 self.spawn_ufo()
-            self.ufo_timer = C.UFO_SPAWN_EVERY
+            # shorten interval as difficulty rises
+            try:
+                self.ufo_timer = float(getattr(C, 'UFO_SPAWN_EVERY', 20.0)) / max(0.001, difficulty)
+            except Exception:
+                self.ufo_timer = getattr(C, 'UFO_SPAWN_EVERY', 20.0)
 
-        # barrel spawn
+        # barrel spawn (intervals scale with difficulty)
         self.last_barrel_spawn += dt
         if self.last_barrel_spawn >= self.next_barrel_spawn:
             self.last_barrel_spawn = 0.0
-            self.next_barrel_spawn = uniform(C.BARREL_SPAWN_INTERVAL_MIN, C.BARREL_SPAWN_INTERVAL_MAX)
+            try:
+                self.next_barrel_spawn = uniform(C.BARREL_SPAWN_INTERVAL_MIN, C.BARREL_SPAWN_INTERVAL_MAX) / max(0.001, difficulty)
+            except Exception:
+                self.next_barrel_spawn = uniform(C.BARREL_SPAWN_INTERVAL_MIN, C.BARREL_SPAWN_INTERVAL_MAX)
             x = uniform(20, C.WIDTH - 20)
             target_y = uniform(C.HEIGHT * 0.5, C.HEIGHT - 40)
             barrel = Barrel(x, target_y)
@@ -160,11 +168,45 @@ class World:
 
         self.handle_collisions()
 
-        if not self.asteroids and self.wave_cool <= 0:
-            self.start_wave()
-            self.wave_cool = C.WAVE_DELAY
-        elif not self.asteroids:
-            self.wave_cool -= dt
+        # Continuous asteroid spawning (difficulty scales with score)
+        try:
+            # `difficulty` already computed above from score; ensure fallback
+            difficulty = locals().get('difficulty', 1.0)
+            self.asteroid_spawn_timer -= dt
+            if self.asteroid_spawn_timer <= 0:
+                # compute next interval (shortens as difficulty increases)
+                interval = max(float(getattr(C, 'AST_SPAWN_INTERVAL_MIN', 0.4)),
+                               float(getattr(C, 'AST_SPAWN_INTERVAL_BASE', 1.5)) / max(0.001, difficulty))
+                self.asteroid_spawn_timer = interval
+                # determine how many to spawn this tick (increase slowly with score)
+                spawn_count = 1 + int(self.score / 5000)
+                spawn_count = min(spawn_count, 4)
+                for _ in range(spawn_count):
+                    pos = rand_edge_pos()
+                    # avoid spawns too close to the player
+                    tries = 0
+                    while (pos - self.ship.pos).length() < 120 and tries < 8:
+                        pos = rand_edge_pos()
+                        tries += 1
+                    ang = uniform(0, math.tau)
+                    base_speed = uniform(C.AST_VEL_MIN, C.AST_VEL_MAX)
+                    # scale speed modestly with difficulty
+                    speed = base_speed * (1.0 + (difficulty - 1.0) * 0.25)
+                    vel = Vec(math.cos(ang), math.sin(ang)) * speed
+                    # select size probabilistically: more small/medium at higher difficulty
+                    prob_m = min(0.4, (difficulty - 1.0) * 0.15)
+                    prob_s = min(0.2, (difficulty - 1.0) * 0.05)
+                    r = uniform(0, 1)
+                    if r < prob_s:
+                        size = 'S'
+                    elif r < (prob_s + prob_m):
+                        size = 'M'
+                    else:
+                        size = 'L'
+                    self.spawn_asteroid(pos, vel, size)
+        except Exception:
+            # If anything unexpected happens in spawning, silently continue
+            pass
 
     def handle_collisions(self):
         # Colisao entre balas do jogador e asteroides
@@ -410,6 +452,10 @@ class World:
             spr.draw(surf)
 
         pg.draw.line(surf, (60, 60, 60), (0, 50), (C.WIDTH, 50), width=1)
-        txt = f"SCORE {self.score:06d}   LIVES {self.lives}   WAVE {self.wave}"
+        try:
+            difficulty = 1.0 + (float(self.score) / float(getattr(C, 'AST_DIFFICULTY_SCORE_SCALE', 1000.0)))
+            txt = f"SCORE {self.score:06d}   LIVES {self.lives}   DIFF {difficulty:.2f}"
+        except Exception:
+            txt = f"SCORE {self.score:06d}   LIVES {self.lives}"
         label = font.render(txt, True, C.WHITE)
         surf.blit(label, (10, 10))

@@ -12,6 +12,14 @@ START_LIVES = 3
 SAFE_SPAWN_TIME = 2.0  # seconds of invulnerability after respawn
 WAVE_DELAY = 2.0       # seconds between waves
 
+# Continuous asteroid spawn (replaces wave system)
+# Base interval (seconds) between asteroid spawns before difficulty scaling
+AST_SPAWN_INTERVAL_BASE = 1.5
+# Minimum possible interval (seconds) between spawns when difficulty is high
+AST_SPAWN_INTERVAL_MIN = 0.4
+# Scale factor for difficulty: score / AST_DIFFICULTY_SCORE_SCALE increases difficulty
+AST_DIFFICULTY_SCORE_SCALE = 1000.0
+
 # Parâmetros para o funcionamento da nave do jogador
 # Ship
 SHIP_RADIUS = 15

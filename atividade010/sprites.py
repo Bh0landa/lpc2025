@@ -5,71 +5,74 @@ import pygame as pg
 
 import config as C
 from utils import Vec, angle_to_vec, draw_circle, draw_poly, wrap_pos
+import assets
 try:
-    from embedded_ship_frames import FRAMES as EMBED_FRAMES
-except Exception:
+    from frames.embedded_ship_frames import FRAMES as EMBED_FRAMES  # type: ignore
+except ImportError:
     EMBED_FRAMES = None
 try:
-    from embedded_ovni_frames import FRAMES as OVNI_FRAMES
-except Exception:
+    from frames.embedded_ovni_frames import FRAMES as OVNI_FRAMES  # type: ignore
+except ImportError:
     OVNI_FRAMES = None
 try:
-    from embedded_barrel_frames import FRAMES as BARREL_FRAMES
-except Exception:
+    from frames.embedded_barrel_frames import FRAMES as BARREL_FRAMES  # type: ignore
+except ImportError:
     BARREL_FRAMES = None
+try:
+    # prefer older module name if present, otherwise use the new file
+    try:
+        from frames.embedded_explosion_frames import FRAMES as EXP_FRAMES  # type: ignore
+    except ImportError:
+        from frames.embedded_explosion_frames_new import FRAMES as EXP_FRAMES  # type: ignore
+except ImportError:
+    EXP_FRAMES = None
 
-
-# Classes que representam os sprites do jogo
-# Cada classe guarda posicao, velocidade, raio e metodos de movimento e desenho
-class Bullet(pg.sprite.Sprite):
-    def __init__(self, pos: Vec, vel: Vec):
+# Projectile base class to avoid duplication between Bullet and UFObullet
+class Projectile(pg.sprite.Sprite):
+    def __init__(self, pos: Vec, vel: Vec, r: int, length: int, width: int, colors):
         super().__init__()
         self.pos = Vec(pos)
         self.vel = Vec(vel)
-        self.r = C.BULLET_RADIUS
+        self.r = r
         try:
             self._spawn_tick = pg.time.get_ticks()
         except Exception:
             self._spawn_tick = 0
         self.rect = pg.Rect(0, 0, self.r * 2, self.r * 2)
+        self.length = length
+        self.width = width
+        self.colors = colors
 
-    # Atualiza posicao e tempo de vida
     def update(self, dt: float):
-        # store previous position for continuous collision checks
         try:
             self._prev_pos = Vec(self.pos)
         except Exception:
             self._prev_pos = Vec(self.pos)
         self.pos += self.vel * dt
-        # Se a bala sair da tela, removê-la (não atravessar/wrap)
         if self.pos.x < 0 or self.pos.x > C.WIDTH or self.pos.y < 0 or self.pos.y > C.HEIGHT:
             self.kill()
             return
         self.rect.center = self.pos
-    
-    # Desenha o projétil como um pequeno retângulo alinhado com a direção
+
     def draw(self, surf: pg.Surface):
         if self.vel.length() > 0:
             dirv = self.vel.normalize()
         else:
             dirv = Vec(1, 0)
         perp = Vec(-dirv.y, dirv.x)
-        length = 12
-        width = 4
-        halfL = length / 2
-        halfW = width / 2
+        halfL = self.length / 2
+        halfW = self.width / 2
         p1 = self.pos - dirv * halfL - perp * halfW
         p2 = self.pos - dirv * halfL + perp * halfW
         p3 = self.pos + dirv * halfL + perp * halfW
         p4 = self.pos + dirv * halfL - perp * halfW
-        colors = [C.WHITE, (0, 200, 255), (255, 80, 80)]
         elapsed = pg.time.get_ticks() - getattr(self, '_spawn_tick', 0)
-        idx = (elapsed // 40) % len(colors)
-        color = colors[idx]
+        idx = (elapsed // 40) % len(self.colors)
+        color = self.colors[idx]
         pts = [p1, p2, p3, p4]
         pg.draw.polygon(surf, color, [(int(p.x), int(p.y)) for p in pts])
+
     def get_mask(self):
-        # create a small circular mask for the bullet centered on its position
         try:
             r = int(max(1, self.r))
         except Exception:
@@ -80,6 +83,14 @@ class Bullet(pg.sprite.Sprite):
         mask = pg.mask.from_surface(surf)
         rect = surf.get_rect(center=(int(self.pos.x), int(self.pos.y)))
         return (mask, rect)
+
+
+# Classes que representam os sprites do jogo
+# Cada classe guarda posicao, velocidade, raio e metodos de movimento e desenho
+class Bullet(Projectile):
+    def __init__(self, pos: Vec, vel: Vec):
+        colors = [C.WHITE, (0, 200, 255), (255, 80, 80)]
+        super().__init__(pos, vel, C.BULLET_RADIUS, length=12, width=4, colors=colors)
 class Asteroid(pg.sprite.Sprite):
     def __init__(self, pos: Vec, vel: Vec, size: str):
         super().__init__()
@@ -555,60 +566,10 @@ class UFO(pg.sprite.Sprite):
         pg.draw.ellipse(surf, C.WHITE, cup, width=1)
 
 
-class UFObullet(pg.sprite.Sprite):
+class UFObullet(Projectile):
     def __init__(self, pos: Vec, vel: Vec):
-        super().__init__()
-        self.pos = Vec(pos)
-        self.vel = Vec(vel)
-        self.r = C.BULLET_RADIUS
-        try:
-            self._spawn_tick = pg.time.get_ticks()
-        except Exception:
-            self._spawn_tick = 0
-        self.rect = pg.Rect(0, 0, self.r * 2, self.r * 2)
-
-    def update(self, dt: float):
-        self.pos += self.vel * dt
-        # Se o projétil inimigo sair da tela, removê-lo
-        if self.pos.x < 0 or self.pos.x > C.WIDTH or self.pos.y < 0 or self.pos.y > C.HEIGHT:
-            self.kill()
-            return
-        self.rect.center = self.pos
-
-    def draw(self, surf: pg.Surface):
-        # Desenha retângulo piscante para projétil inimigo (similar ao do jogador)
-        if self.vel.length() > 0:
-            dirv = self.vel.normalize()
-        else:
-            dirv = Vec(1, 0)
-        perp = Vec(-dirv.y, dirv.x)
-        length = 10
-        width = 3
-        halfL = length / 2
-        halfW = width / 2
-        p1 = self.pos - dirv * halfL - perp * halfW
-        p2 = self.pos - dirv * halfL + perp * halfW
-        p3 = self.pos + dirv * halfL + perp * halfW
-        p4 = self.pos + dirv * halfL - perp * halfW
         colors = [C.WHITE, (0, 200, 255), (255, 80, 80)]
-        # piscar por projétil: calcula índice baseado no tempo desde o spawn
-        elapsed = pg.time.get_ticks() - getattr(self, '_spawn_tick', 0)
-        idx = (elapsed // 40) % len(colors)
-        color = colors[idx]
-        pts = [p1, p2, p3, p4]
-        pg.draw.polygon(surf, color, [(int(p.x), int(p.y)) for p in pts])
-    def get_mask(self):
-        # circular mask similar to Bullet
-        try:
-            r = int(max(1, self.r))
-        except Exception:
-            r = 2
-        w = h = r * 2
-        surf = pg.Surface((w, h), pg.SRCALPHA)
-        pg.draw.circle(surf, (255, 255, 255), (r, r), r)
-        mask = pg.mask.from_surface(surf)
-        rect = surf.get_rect(center=(int(self.pos.x), int(self.pos.y)))
-        return (mask, rect)
+        super().__init__(pos, vel, C.BULLET_RADIUS, length=10, width=3, colors=colors)
 
 
 class Barrel(pg.sprite.Sprite):
@@ -671,11 +632,49 @@ class Barrel(pg.sprite.Sprite):
         # If this barrel is exploding (TNT), draw explosion circle and skip normal sprite
         if getattr(self, 'exploded', False) and self.kind == 'tnt':
             radius = int(getattr(self, 'explosion_radius', getattr(C, 'BARREL_TNT_EXPLOSION_RADIUS', 80)))
+            # If we have embedded explosion frames, render the appropriate frame
+            if EXP_FRAMES and 'explosao' in EXP_FRAMES and EXP_FRAMES['explosao']:
+                # Prefer precomputed surfaces if available (generated at hit time)
+                frames = getattr(self, '_explosion_surfaces', None)
+                dur = float(getattr(self, 'explosion_duration', getattr(C, 'BARREL_TNT_EXPLOSION_TIME', 0.28)))
+                elapsed = max(0.0, dur - float(getattr(self, 'explosion_timer', 0.0)))
+                t = 0.0 if dur <= 0 else min(1.0, elapsed / dur)
+                if frames and len(frames) > 0:
+                    idx = int(t * (len(frames) - 1))
+                    idx = max(0, min(idx, len(frames) - 1))
+                    spr = frames[idx]
+                    rect = spr.get_rect(center=(int(self.pos.x), int(self.pos.y)))
+                    surf.blit(spr, rect)
+                    return
+                else:
+                    # fallback to previous on-the-fly rendering if precompute not available
+                    frames_src = EXP_FRAMES['explosao']
+                    idx = int(t * (len(frames_src) - 1)) if len(frames_src) > 0 else 0
+                    fr = frames_src[max(0, min(idx, len(frames_src) - 1))]
+                    if isinstance(fr, dict) and 'pixels' in fr:
+                        w = int(fr['w'])
+                        h = int(fr['h'])
+                        pixels = fr['pixels']
+                        spr0 = pg.Surface((w, h), pg.SRCALPHA)
+                        for yy, row in enumerate(pixels):
+                            for xx, col in enumerate(row):
+                                r, g, b, a = col
+                                if a == 0:
+                                    continue
+                                spr0.set_at((xx, yy), (r, g, b, a))
+                        target = max(1, int(radius * 2))
+                        try:
+                            spr = pg.transform.smoothscale(spr0, (target, target))
+                        except Exception:
+                            spr = pg.transform.scale(spr0, (target, target))
+                        rect = spr.get_rect(center=(int(self.pos.x), int(self.pos.y)))
+                        surf.blit(spr, rect)
+                        return
+            # fallback: draw simple orange circle outline
             color = (255, 140, 0)
             try:
                 pg.draw.circle(surf, color, (int(self.pos.x), int(self.pos.y)), radius, width=3)
             except Exception:
-                # fallback: use helper draw_circle (white)
                 from utils import draw_circle
                 draw_circle(surf, self.pos, radius)
             return
@@ -753,7 +752,25 @@ class Barrel(pg.sprite.Sprite):
                     pass
                 self.exploded = True
                 self.explosion_timer = float(getattr(C, 'BARREL_TNT_EXPLOSION_TIME', 0.28))
+                # store full duration so drawing can compute frame index
+                self.explosion_duration = float(getattr(C, 'BARREL_TNT_EXPLOSION_TIME', 0.28))
                 self.explosion_radius = int(getattr(C, 'BARREL_TNT_EXPLOSION_RADIUS', 80))
+                # Precompute explosion frames as surfaces scaled to desired radius
+                try:
+                    if EXP_FRAMES and 'explosao' in EXP_FRAMES and EXP_FRAMES['explosao']:
+                        frames_src = EXP_FRAMES['explosao']
+                        target = max(1, int(self.explosion_radius * 2))
+                        try:
+                            pre = assets.frames_to_surfaces(frames_src, target, target)
+                            # cache masks too for future use if needed
+                            self._explosion_surfaces = pre
+                            self._explosion_masks = [assets.mask_from_surface(s) for s in pre]
+                        except Exception:
+                            self._explosion_surfaces = None
+                            self._explosion_masks = None
+                except Exception:
+                    self._explosion_surfaces = None
+                    self._explosion_masks = None
                 # stop movement and mark landed so it doesn't fall further
                 self.vel = Vec(0, 0)
                 self.landed = True

@@ -74,11 +74,11 @@ class Game:
     # Desenha o menu inicial
     def draw_menu(self):
         # Centered menu layout
-        title_surf = self.big.render("ASTEROIDS", True, C.WHITE)
+        title_surf = self.big.render("SPACE ROBOT", True, C.WHITE)
         title_rect = title_surf.get_rect(center=(C.WIDTH // 2, 160))
         self.screen.blit(title_surf, title_rect)
         info = (
-            "W: thrust  S: brake  Mouse: rotate  Right-click: shoot "
+            "WASD: move Right-click: shoot Mouse: rotate aim\n"
             "Shift: hyperspace"
         )
         info_surf = self.font.render(info, True, C.WHITE)
