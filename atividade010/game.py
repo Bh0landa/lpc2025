@@ -1,3 +1,4 @@
+# Module `game.py` — short description of this module.
 import random
 import sys
 from dataclasses import dataclass
@@ -9,23 +10,29 @@ from systems import World
 from utils import text
 
 
-# Representa uma cena simples do jogo por nome
+# Represents a simple game scene by name
 @dataclass
+# Class `Scene` — describe responsibility and main methods.
 class Scene:
     """Cena simples representada por um nome.
 
     Usada para alternar entre 'menu' e 'play'.
     """
+
     name: str
 
 
+# Class `Game` — describe responsibility and main methods.
+
+
 class Game:
-    # Inicializa pygame, fontes, janela e o mundo do jogo
+    # Function `__init__(self)` — describe purpose and behavior.
+    # Initialize pygame, fonts, window and the game world
     def __init__(self):
         pg.init()
         if C.RANDOM_SEED is not None:
             random.seed(C.RANDOM_SEED)
-        # Abrir a janela na resolução definida em config (janela)
+        # Open the window at the resolution defined in config
         self.screen = pg.display.set_mode((C.WIDTH, C.HEIGHT))
         pg.display.set_caption("Asteroids")
         self.clock = pg.time.Clock()
@@ -34,7 +41,8 @@ class Game:
         self.scene = Scene("menu")
         self.world = World()
 
-    # Loop principal do jogo que processa eventos e atualiza a cena
+    # Function `run(self)` — describe purpose and behavior.
+    # Main game loop that processes events and updates the scene
     def run(self):
         while True:
             dt = self.clock.tick(C.FPS) / 1000.0
@@ -45,9 +53,9 @@ class Game:
                 if e.type == pg.KEYDOWN and e.key == pg.K_ESCAPE:
                     pg.quit()
                     sys.exit(0)
-                # Entradas dependem da cena atual
+                # Inputs depend on the current scene
                 if self.scene.name == "play":
-                    # Hyperspace ainda por tecla Shift (evento)
+                    # Hyperspace via Shift key (event)
                     if e.type == pg.KEYDOWN and e.key == pg.K_LSHIFT:
                         self.world.hyperspace()
                 elif self.scene.name == "menu":
@@ -55,7 +63,7 @@ class Game:
                         self.scene = Scene("play")
 
             keys = pg.key.get_pressed()
-            # Permite atirar enquanto o botão esquerdo do mouse estiver pressionado
+            # Allow shooting while the left mouse button is held
             mouse_buttons = pg.mouse.get_pressed()
             if self.scene.name == "play" and mouse_buttons[0]:
                 self.world.try_fire()
@@ -65,13 +73,14 @@ class Game:
             if self.scene.name == "menu":
                 self.draw_menu()
             elif self.scene.name == "play":
-                # Atualiza o mundo e desenha os sprites
+                # Update the world and draw the sprites
                 self.world.update(dt, keys)
                 self.world.draw(self.screen, self.font)
 
             pg.display.flip()
 
-    # Desenha o menu inicial
+    # Function `draw_menu(self)` — describe purpose and behavior.
+    # Draw the initial menu
     def draw_menu(self):
         # Centered menu layout
         title_surf = self.big.render("SPACE ROBOT", True, C.WHITE)

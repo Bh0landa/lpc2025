@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# Module `sounds.py` — short description of this module.
 import os
 import io
 import math
@@ -6,29 +8,31 @@ import struct
 import wave
 import pygame as pg
 
-# Módulo simples de efeitos sonoros
-# Gera sons em memoria para evitar dependencias de ficheiros
 
+# Internal state: whether the sound system has been initialized
 _initialized = False
+# Cache for synthesized/loaded sound objects by key
 _sfx = {}
 
 
+# Function `init()` — initialize the pygame mixer and prepare SFX in memory.
 def init():
-    # Inicializa o mixer do pygame e prepara os efeitos em memoria
     global _initialized, _sfx
     if _initialized:
         return
     try:
         pg.mixer.init()
     except Exception:
-        # Se o mixer falhar, marcamos como inicializado para evitar tentativas repetidas
         _initialized = True
         return
 
-    # Chaves dos efeitos que geramos em memoria
     keys = ["shot", "explosion", "ufo_spawn", "ufo_shot"]
+    # Available sound keys: map these names to synthesized SFX used by the game.
+    # - 'shot': short player shot sound (brief pulse + harmonics + noise)
+    # - 'explosion': low-frequency damped sine to simulate an explosion
+    # - 'ufo_spawn': mid-frequency brief tone for UFO entrance
+    # - 'ufo_shot': mid/high tone for enemy shot
 
-    # Gera buffers WAV em memoria e cria objetos Sound
     for key in keys:
         sound_obj = None
         try:
@@ -42,8 +46,8 @@ def init():
     _initialized = True
 
 
+# Function `_play(key, volume)` — play a cached sound by key, initializing system if needed.
 def _play(key: str, volume: float = 0.8):
-    # Toca um efeito se disponível, inicializando o sistema se preciso
     if not _initialized:
         init()
     snd = _sfx.get(key)
@@ -55,13 +59,13 @@ def _play(key: str, volume: float = 0.8):
             pass
 
 
+# Function `_synthesize_wav(path, key)` — synthesize a WAV file on disk for the given key.
+# This is primarily used for debugging or exporting generated sounds.
 def _synthesize_wav(path: str, key: str):
-    # Gera um ficheiro WAV mono 16 bits em disco para debug ou testes
-    # Ajustes especiais para efeitos curtos como 'shot' (pitch sweep + decay)
     framerate = 22050
     amplitude = 16000
+    # framerate: samples per second; amplitude is max sample magnitude (16-bit)
     if key == "shot":
-        # Classic Robotron-style: short, bright pulse with quick rising pitch
         duration = 0.06
         freq_start = 800.0
         freq_end = 3000.0
@@ -83,24 +87,31 @@ def _synthesize_wav(path: str, key: str):
         for i in range(nframes):
             t = i / framerate
             if key == "shot":
-                # Classic Robotron: strong square-like pulse + harmonics + quick pitch sweep
+                # Slide frequency from freq_start to freq_end over the short duration
                 f = freq_start + (freq_end - freq_start) * (t / duration)
-                # agressive envelope for short, punchy blip
+                # Fast exponential decay envelope to create a percussive pulse
                 env = math.exp(-20.0 * (t / duration))
-                # square pulse (harsh) to get many harmonics
+                # Pulse-wave base (simple bipolar square-ish pulse)
                 base = 1.0 if math.sin(2 * math.pi * f * t) >= 0 else -1.0
-                # add a couple harmonics for body
+                # Add harmonic partials to enrich timbre
                 h1 = 0.6 * math.sin(2 * math.pi * (2 * f) * t)
                 h2 = 0.35 * math.sin(2 * math.pi * (3 * f) * t)
-                # tiny noise transient at attack
-                noise = (random.random() * 2.0 - 1.0) * math.exp(-80.0 * (t / duration))
+                # Short, rapidly-decaying noise component for 'bite'
+                noise = (random.random() * 2.0 - 1.0) * math.exp(
+                    -80.0 * (t / duration)
+                )
+                # Mix components and apply small quantization to emulate lo-fi pulse
                 raw = 0.92 * base + h1 + h2 + 0.18 * noise
-                # light bit crushing (8-bit feel)
                 qlevels = 128.0
-                qval = math.floor((raw + 1.0) * 0.5 * qlevels) / qlevels * 2.0 - 1.0
+                qval = (
+                    math.floor((raw + 1.0) * 0.5 * qlevels) / qlevels * 2.0
+                    - 1.0
+                )
                 sample = int(amplitude * env * 0.95 * qval)
             elif key == "explosion":
+                # Explosion: low base frequency with a decaying amplitude
                 env = max(0.0, 1.0 - t / duration)
+                # Additional falloff term (1.0 - t/duration) emphasizes initial transient
                 sample = int(
                     amplitude
                     * env
@@ -108,8 +119,11 @@ def _synthesize_wav(path: str, key: str):
                     * (1.0 - t / duration)
                 )
             else:
+                # Default tone (ufo spawn/shot): simple sine with gentle linear decay
                 env = 1.0 - 0.6 * (t / duration)
-                sample = int(amplitude * env * math.sin(2 * math.pi * base_freq * t))
+                sample = int(
+                    amplitude * env * math.sin(2 * math.pi * base_freq * t)
+                )
 
             data = struct.pack("<h", max(-32767, min(32767, sample)))
             wf.writeframesraw(data)
@@ -117,12 +131,9 @@ def _synthesize_wav(path: str, key: str):
 
 
 def _synthesize_wav_bytes(key: str) -> io.BytesIO:
-    # Gera um WAV na memoria e devolve um BytesIO pronto para leitura
     framerate = 22050
     amplitude = 16000
     if key == "shot":
-        # Arcade-lofi Robotron-like blip: short pulse with fast rising pitch,
-        # added noise transient and light bit-crush for 'chip' character
         duration = 0.06
         freq_start = 1200.0
         freq_end = 3000.0
@@ -145,25 +156,27 @@ def _synthesize_wav_bytes(key: str) -> io.BytesIO:
         for i in range(nframes):
             t = i / framerate
             if key == "shot":
-                # fast pitch sweep
+                # Sliding frequency and exponential decay to model a short shot
                 f = freq_start + (freq_end - freq_start) * (t / duration)
-                # sharp exponential envelope for a punchy blip
                 env = math.exp(-22.0 * (t / duration))
-                # square-ish pulse (harsh) plus a sine harmonic for body
+                # Use a pulse-like core plus a secondary harmonic to add character
                 s = math.sin(2 * math.pi * f * t)
                 pulse = 1.0 if s >= 0 else -1.0
-                body = 0.85 * pulse + 0.45 * math.sin(2 * math.pi * 1.8 * f * t)
-                # short noise burst at the attack to emulate harsh arcade drivers
-                noise = (random.random() * 2.0 - 1.0) * math.exp(-60.0 * (t / duration))
+                body = 0.85 * pulse + 0.45 * math.sin(
+                    2 * math.pi * 1.8 * f * t
+                )
+                # Decaying noise adds texture; decays faster than tone
+                noise = (random.random() * 2.0 - 1.0) * math.exp(
+                    -60.0 * (t / duration)
+                )
                 raw = body + 0.25 * noise
-                # apply envelope
+                # Apply a small quantization to emulate sampled/retro sound
                 val = env * raw
-                # bit-crush / quantize to 8-bit-like steps to make it arcade-y
                 levels = 256.0
                 q = math.floor((val + 1.0) * 0.5 * levels) / levels * 2.0 - 1.0
-                # final gentle scaling
                 sample = int(amplitude * 0.9 * q)
             elif key == "explosion":
+                # Explosion: low-frequency sinusoid with amplitude shaping
                 env = max(0.0, 1.0 - t / duration)
                 sample = int(
                     amplitude
@@ -172,8 +185,11 @@ def _synthesize_wav_bytes(key: str) -> io.BytesIO:
                     * (1.0 - t / duration)
                 )
             else:
+                # Default UFO tone: sustain-like envelope with gentle falloff
                 env = 1.0 - 0.6 * (t / duration)
-                sample = int(amplitude * env * math.sin(2 * math.pi * base_freq * t))
+                sample = int(
+                    amplitude * env * math.sin(2 * math.pi * base_freq * t)
+                )
 
             data = struct.pack("<h", max(-32767, min(32767, sample)))
             wf.writeframesraw(data)
@@ -183,23 +199,26 @@ def _synthesize_wav_bytes(key: str) -> io.BytesIO:
 
 
 def _synthesize_samples_numpy(key: str):
-    # Assinatura mantida para compatibilidade, numpy nao e utilizado
+    # Placeholder for an alternative synthesis path that would use numpy.
+    # Not available in this environment; raise an explicit error.
     raise RuntimeError("numpy-based synthesis not available")
 
 
 def play_shot():
-    # Funcoes simples para tocar efeitos especificos
+    # Play the player's shot sound effect.
     _play("shot", 0.6)
 
 
 def play_explosion():
+    # Play an explosion sound effect.
     _play("explosion", 0.8)
 
 
 def play_ufo_spawn():
+    # Play the UFO spawn sound.
     _play("ufo_spawn", 0.6)
 
 
 def play_ufo_shot():
-    # Use the same shot sound as the player so both sound identical
+    # Play the UFO's shot sound (reuses player shot sound by design).
     _play("shot", 0.6)
