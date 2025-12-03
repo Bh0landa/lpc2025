@@ -13,9 +13,9 @@ WAVE_DELAY = 2.0  # seconds between waves
 
 # Continuous asteroid spawn (replaces wave system)
 # Base interval (seconds) between asteroid spawns before difficulty scaling
-AST_SPAWN_INTERVAL_BASE = 1.5
+AST_SPAWN_INTERVAL_BASE = 2.5
 # Minimum possible interval (seconds) between spawns when difficulty is high
-AST_SPAWN_INTERVAL_MIN = 0.4
+AST_SPAWN_INTERVAL_MIN = 0.8
 # Scale factor for difficulty: score / AST_DIFFICULTY_SCORE_SCALE increases difficulty
 AST_DIFFICULTY_SCORE_SCALE = 1000.0
 
@@ -36,8 +36,8 @@ SHIP_PIXEL_SCALE = 3
 
 # Sizes, scoring and fragmentation behavior
 # Asteroids
-AST_VEL_MIN = 30.0
-AST_VEL_MAX = 90.0
+AST_VEL_MIN = 20.0
+AST_VEL_MAX = 60.0
 AST_SIZES = {
     "L": {"r": 46, "score": 20, "split": ["M", "M"]},
     "M": {"r": 24, "score": 50, "split": ["S", "S"]},
@@ -66,7 +66,7 @@ UFO_ORBIT_MAX_TURN = 3.0  # how quickly UFO can change direction (smoothing)
 UFO_ORBIT_VARIANCE = 0.25
 # How many UFOs to spawn each time the UFO spawn timer fires.
 # Increase this to have multiple UFOs appear at once.
-UFO_SPAWN_COUNT = 3
+UFO_SPAWN_COUNT = 1
 
 # Barrel settings
 BARREL_SPAWN_INTERVAL_MIN = 4.0
@@ -86,3 +86,12 @@ BLACK = (0, 0, 0)
 # Definir um inteiro aqui para reproduzir runs quando precisar
 # Randomness
 RANDOM_SEED = None  # or set an int for reproducibility
+
+# Refactoring constants
+AST_SPAWN_MIN_DIST = 120
+AST_SPAWN_MAX_TRIES = 8
+AST_SCORE_SPAWN_FACTOR = 8000
+AST_MAX_SPAWN_COUNT = 2
+AST_SPEED_SCALE = 0.15
+AST_SPLIT_SPEED_SCALE = 1.2
+UFO_SHOT_TIMER = 0.14

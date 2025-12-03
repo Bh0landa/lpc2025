@@ -87,8 +87,7 @@ class Game:
         title_rect = title_surf.get_rect(center=(C.WIDTH // 2, 160))
         self.screen.blit(title_surf, title_rect)
         info = (
-            "WASD: move; Right-click: shoot; Mouse: rotate aim;\n"
-            "Shift: hyperspace"
+            "WASD: move; Right-click: shoot; Mouse: rotate aim; Shift: hyperspace"
         )
         info_surf = self.font.render(info, True, C.WHITE)
         info_rect = info_surf.get_rect(center=(C.WIDTH // 2, 260))

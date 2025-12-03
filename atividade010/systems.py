@@ -9,6 +9,9 @@ from sprites import Asteroid, Ship, UFO, Barrel
 from utils import Vec, rand_edge_pos, rand_unit_vec
 from sprites import UFObullet
 import sounds
+from utils import get_logger
+
+logger = get_logger("systems")
 
 
 # Class `World` — describe responsibility and main methods.
@@ -86,8 +89,8 @@ class World:
             self.all_sprites.add(b)
             try:
                 sounds.play_shot()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to play shot sound: {e}")
 
     # Function `hyperspace(self)` — describe purpose and behavior.
 
@@ -104,17 +107,10 @@ class World:
         # Note: UFO.update accepts (dt, ship_pos) so we pass the player's position;
         # other sprites implement update(dt) only.
         for spr in list(self.all_sprites):
-            try:
-                if spr.__class__.__name__ == "UFO":
-                    spr.update(dt, self.ship.pos)
-                else:
-                    spr.update(dt)
-            except TypeError:
-                # Some sprites may implement update(dt, ...) differently; fallback
-                try:
-                    spr.update(dt)
-                except Exception:
-                    pass
+            if isinstance(spr, UFO):
+                spr.update(dt, self.ship.pos)
+            else:
+                spr.update(dt)
         self.ufo_bullets.update(dt)
         self.ship.control(keys, dt)
         # The ship is updated via `all_sprites.update`
@@ -126,17 +122,10 @@ class World:
         self.ufo_timer -= dt
         if self.ufo_timer <= 0:
             # difficulty scales with score (higher score -> more frequent spawns)
-            try:
-                difficulty = 1.0 + (
-                    float(self.score)
-                    / float(getattr(C, "AST_DIFFICULTY_SCORE_SCALE", 1000.0))
-                )
-            except Exception:
-                difficulty = 1.0
-            try:
-                configured_count = int(getattr(C, "UFO_SPAWN_COUNT", 1))
-            except Exception:
-                configured_count = 1
+            difficulty = 1.0 + (float(self.score) / C.AST_DIFFICULTY_SCORE_SCALE)
+            
+            configured_count = getattr(C, "UFO_SPAWN_COUNT", 1)
+            
             # determine desired concurrent UFOs (scale slowly with difficulty)
             desired_concurrent = min(configured_count, 1 + int(difficulty / 2))
             # spawn only up to the difference between desired and current active UFOs
@@ -145,26 +134,17 @@ class World:
                 # Spawn up to `spawn_count` UFOs to reach desired concurrency.
                 self.spawn_ufo()
             # shorten interval as difficulty rises
-            try:
-                self.ufo_timer = float(
-                    getattr(C, "UFO_SPAWN_EVERY", 20.0)
-                ) / max(0.001, difficulty)
-            except Exception:
-                self.ufo_timer = getattr(C, "UFO_SPAWN_EVERY", 20.0)
+            self.ufo_timer = float(getattr(C, "UFO_SPAWN_EVERY", 20.0)) / max(0.001, difficulty)
 
         # barrel spawn (intervals scale with difficulty)
         # Barrel spawn management: spawn barrels periodically (interval may scale with difficulty)
         self.last_barrel_spawn += dt
         if self.last_barrel_spawn >= self.next_barrel_spawn:
             self.last_barrel_spawn = 0.0
-            try:
-                self.next_barrel_spawn = uniform(
-                    C.BARREL_SPAWN_INTERVAL_MIN, C.BARREL_SPAWN_INTERVAL_MAX
-                ) / max(0.001, difficulty)
-            except Exception:
-                self.next_barrel_spawn = uniform(
-                    C.BARREL_SPAWN_INTERVAL_MIN, C.BARREL_SPAWN_INTERVAL_MAX
-                )
+            difficulty = 1.0 + (float(self.score) / C.AST_DIFFICULTY_SCORE_SCALE)
+            self.next_barrel_spawn = uniform(
+                C.BARREL_SPAWN_INTERVAL_MIN, C.BARREL_SPAWN_INTERVAL_MAX
+            ) / max(0.001, difficulty)
             # Create a barrel that falls from above to `target_y`.
             x = uniform(20, C.WIDTH - 20)
             target_y = uniform(C.HEIGHT * 0.5, C.HEIGHT - 40)
@@ -192,64 +172,59 @@ class World:
                     self.ufo_bullets.add(b)
                     self.all_sprites.add(b)
                     # mark ufo to display 'shot' frame briefly (if it supports embedded frames)
-                    try:
-                        ufo._show_shot = True
-                        ufo._shot_timer = 0.14
-                    except Exception:
-                        pass
+                    # mark ufo to display 'shot' frame briefly (if it supports embedded frames)
+                    ufo._show_shot = True
+                    ufo._shot_timer = C.UFO_SHOT_TIMER
+                    
                     # reset the UFO fire cooldown
                     ufo.fire_cool = ufo.fire_rate
                     try:
                         sounds.play_ufo_shot()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Failed to play UFO shot sound: {e}")
 
         # Resolve collisions after updates (bullets, asteroids, UFOs, barrels)
         self.handle_collisions()
 
         # Continuous asteroid spawning (difficulty scales with score)
-        try:
-            # `difficulty` already computed above from score; ensure fallback
-            difficulty = locals().get("difficulty", 1.0)
-            self.asteroid_spawn_timer -= dt
-            if self.asteroid_spawn_timer <= 0:
-                # compute next interval (shortens as difficulty increases)
-                interval = max(
-                    float(getattr(C, "AST_SPAWN_INTERVAL_MIN", 0.4)),
-                    float(getattr(C, "AST_SPAWN_INTERVAL_BASE", 1.5))
-                    / max(0.001, difficulty),
-                )
-                self.asteroid_spawn_timer = interval
-                # determine how many to spawn this tick (increase slowly with score)
-                spawn_count = 1 + int(self.score / 5000)
-                spawn_count = min(spawn_count, 4)
-                for _ in range(spawn_count):
-                    # Spawn asteroid at a random screen edge, avoiding the player
+        # `difficulty` already computed above from score
+        difficulty = 1.0 + (float(self.score) / C.AST_DIFFICULTY_SCORE_SCALE)
+        self.asteroid_spawn_timer -= dt
+        if self.asteroid_spawn_timer <= 0:
+            # compute next interval (shortens as difficulty increases)
+            interval = max(
+                float(getattr(C, "AST_SPAWN_INTERVAL_MIN", 0.4)),
+                float(getattr(C, "AST_SPAWN_INTERVAL_BASE", 1.5))
+                / max(0.001, difficulty),
+            )
+            self.asteroid_spawn_timer = interval
+            # determine how many to spawn this tick (increase slowly with score)
+            spawn_count = 1 + int(self.score / C.AST_SCORE_SPAWN_FACTOR)
+            spawn_count = min(spawn_count, C.AST_MAX_SPAWN_COUNT)
+            for _ in range(spawn_count):
+                # Spawn asteroid at a random screen edge, avoiding the player
+                pos = rand_edge_pos()
+                # avoid spawns too close to the player
+                tries = 0
+                while (pos - self.ship.pos).length() < C.AST_SPAWN_MIN_DIST and tries < C.AST_SPAWN_MAX_TRIES:
                     pos = rand_edge_pos()
-                    # avoid spawns too close to the player
-                    tries = 0
-                    while (pos - self.ship.pos).length() < 120 and tries < 8:
-                        pos = rand_edge_pos()
-                        tries += 1
-                    ang = uniform(0, math.tau)
-                    base_speed = uniform(C.AST_VEL_MIN, C.AST_VEL_MAX)
-                    # scale speed modestly with difficulty
-                    speed = base_speed * (1.0 + (difficulty - 1.0) * 0.25)
-                    vel = Vec(math.cos(ang), math.sin(ang)) * speed
-                    # select size probabilistically: more small/medium at higher difficulty
-                    prob_m = min(0.4, (difficulty - 1.0) * 0.15)
-                    prob_s = min(0.2, (difficulty - 1.0) * 0.05)
-                    r = uniform(0, 1)
-                    if r < prob_s:
-                        size = "S"
-                    elif r < (prob_s + prob_m):
-                        size = "M"
-                    else:
-                        size = "L"
-                    self.spawn_asteroid(pos, vel, size)
-        except Exception:
-            # If anything unexpected happens in spawning, silently continue
-            pass
+                    tries += 1
+                ang = uniform(0, math.tau)
+                base_speed = uniform(C.AST_VEL_MIN, C.AST_VEL_MAX)
+                # scale speed modestly with difficulty
+                speed = base_speed * (1.0 + (difficulty - 1.0) * C.AST_SPEED_SCALE)
+                vel = Vec(math.cos(ang), math.sin(ang)) * speed
+                # select size probabilistically: more small/medium at higher difficulty
+                prob_m = min(0.4, (difficulty - 1.0) * 0.15)
+                prob_s = min(0.2, (difficulty - 1.0) * 0.05)
+                r = uniform(0, 1)
+                if r < prob_s:
+                    size = "S"
+                elif r < (prob_s + prob_m):
+                    size = "M"
+                else:
+                    size = "L"
+                self.spawn_asteroid(pos, vel, size)
 
     # Function `handle_collisions(self)` — describe purpose and behavior.
 
@@ -304,25 +279,22 @@ class World:
                         )
                         if ship_mask.overlap(bar_mask, offset):
                             # block traversal: revert ship to previous position if available
-                            try:
-                                prev = getattr(self.ship, "_prev_pos", None)
-                                if prev is not None:
-                                    self.ship.pos = Vec(prev)
-                                else:
-                                    # fallback: push outside slightly
-                                    dirv = self.ship.pos - barrel.pos
-                                    if dirv.length() == 0:
-                                        from utils import rand_unit_vec
+                            # block traversal: revert ship to previous position if available
+                            if hasattr(self.ship, "_prev_pos") and self.ship._prev_pos is not None:
+                                self.ship.pos = Vec(self.ship._prev_pos)
+                            else:
+                                # fallback: push outside slightly
+                                dirv = self.ship.pos - barrel.pos
+                                if dirv.length() == 0:
+                                    from utils import rand_unit_vec
 
-                                        dirv = rand_unit_vec()
-                                    dirv_norm = dirv.normalize()
-                                    desired_dist = (barrel.r + self.ship.r) + 1
-                                    self.ship.pos = (
-                                        barrel.pos + dirv_norm * desired_dist
-                                    )
-                                self.ship.vel = Vec(0, 0)
-                            except Exception:
-                                pass
+                                    dirv = rand_unit_vec()
+                                dirv_norm = dirv.normalize()
+                                desired_dist = (barrel.r + self.ship.r) + 1
+                                self.ship.pos = (
+                                    barrel.pos + dirv_norm * desired_dist
+                                )
+                            self.ship.vel = Vec(0, 0)
                             break
             else:
                 # fallback to distance checks if masks are not available
@@ -343,24 +315,20 @@ class World:
                     if (barrel.pos - self.ship.pos).length() < (
                         barrel.r + self.ship.r
                     ):
-                        try:
-                            prev = getattr(self.ship, "_prev_pos", None)
-                            if prev is not None:
-                                self.ship.pos = Vec(prev)
-                            else:
-                                dirv = self.ship.pos - barrel.pos
-                                if dirv.length() == 0:
-                                    from utils import rand_unit_vec
+                        if hasattr(self.ship, "_prev_pos") and self.ship._prev_pos is not None:
+                            self.ship.pos = Vec(self.ship._prev_pos)
+                        else:
+                            dirv = self.ship.pos - barrel.pos
+                            if dirv.length() == 0:
+                                from utils import rand_unit_vec
 
-                                    dirv = rand_unit_vec()
-                                dirv_norm = dirv.normalize()
-                                desired_dist = (barrel.r + self.ship.r) + 1
-                                self.ship.pos = (
-                                    barrel.pos + dirv_norm * desired_dist
-                                )
-                            self.ship.vel = Vec(0, 0)
-                        except Exception:
-                            pass
+                                dirv = rand_unit_vec()
+                            dirv_norm = dirv.normalize()
+                            desired_dist = (barrel.r + self.ship.r) + 1
+                            self.ship.pos = (
+                                barrel.pos + dirv_norm * desired_dist
+                            )
+                        self.ship.vel = Vec(0, 0)
                         break
 
         # Destroy UFOs that collide with asteroids
@@ -369,8 +337,8 @@ class World:
                 if (ast.pos - ufo.pos).length() < (ast.r + ufo.r):
                     try:
                         sounds.play_explosion()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Failed to play explosion sound: {e}")
                     ufo.kill()
                     break
 
@@ -451,10 +419,7 @@ class World:
                         if (b.pos - barrel.pos).length() <= (b.r + barrel.r):
                             collided = True
                 if collided:
-                    try:
-                        b.kill()
-                    except Exception:
-                        pass
+                    b.kill()
                     barrel.hit()
                     break
 
@@ -512,10 +477,7 @@ class World:
                     if other is barrel:
                         continue
                     if (other.pos - barrel.pos).length() <= (radius + other.r):
-                        try:
-                            other.hit()
-                        except Exception:
-                            pass
+                        other.hit()
                 # mark applied so it doesn't reapply each frame
                 barrel._explosion_applied = True
 

@@ -6,6 +6,17 @@ from typing import Iterable, Tuple
 import pygame as pg
 
 import config as C
+import logging
+
+def get_logger(name):
+    logger = logging.getLogger(name)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+    return logger
 
 # Type alias: 2D vector used throughout the game for positions and velocities.
 Vec = pg.math.Vector2
