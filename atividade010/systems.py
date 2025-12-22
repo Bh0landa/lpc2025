@@ -1,4 +1,3 @@
-# Module `systems.py` — short description of this module.
 import math
 from random import uniform
 
@@ -14,11 +13,8 @@ from utils import get_logger
 logger = get_logger("systems")
 
 
-# Class `World` — describe responsibility and main methods.
-# Game world that manages entities, score and global game logic.
 # Game world that manages entities, scoring and global game logic.
 class World:
-    # Function `__init__(self)` — describe purpose and behavior.
     # Initialize the world state: player, sprite groups, timers and difficulty state.
 
     def __init__(self):
@@ -54,7 +50,6 @@ class World:
         self.asteroids.add(a)
         self.all_sprites.add(a)
 
-    # Function `spawn_ufo(self)` — describe purpose and behavior.
 
     def spawn_ufo(self):
         # Spawn a UFO (small or large) at a random screen edge.
@@ -78,7 +73,6 @@ class World:
         self.ufos.add(ufo)
         self.all_sprites.add(ufo)
 
-    # Function `try_fire(self)` — describe purpose and behavior.
 
     def try_fire(self):
         # Attempt to fire a bullet from the player's ship.
@@ -92,7 +86,6 @@ class World:
             except Exception as e:
                 logger.warning(f"Failed to play shot sound: {e}")
 
-    # Function `hyperspace(self)` — describe purpose and behavior.
 
     def hyperspace(self):
         # Teleport the player's ship to a random position and apply score penalty.
@@ -100,7 +93,6 @@ class World:
         self.ship.hyperspace()
         self.score = max(0, self.score - C.HYPERSPACE_COST)
 
-    # Function `update(self, dt, keys)` — describe purpose and behavior.
 
     def update(self, dt: float, keys):
         # Update all sprites and main timers.
@@ -226,7 +218,6 @@ class World:
                     size = "L"
                 self.spawn_asteroid(pos, vel, size)
 
-    # Function `handle_collisions(self)` — describe purpose and behavior.
 
     def handle_collisions(self):
         # Collision: player bullets vs asteroids
@@ -481,7 +472,6 @@ class World:
                 # mark applied so it doesn't reapply each frame
                 barrel._explosion_applied = True
 
-    # Function `split_asteroid(self, ast)` — describe purpose and behavior.
 
     def split_asteroid(self, ast: Asteroid):
         # Fragment asteroid and award points
@@ -494,7 +484,6 @@ class World:
             speed = uniform(C.AST_VEL_MIN, C.AST_VEL_MAX) * 1.2
             self.spawn_asteroid(pos, dirv * speed, s)
 
-    # Function `ship_die(self)` — describe purpose and behavior.
 
     def ship_die(self):
         # Handle player ship death
@@ -508,7 +497,6 @@ class World:
             # Reset the world when the player loses all lives
             self.__init__()
 
-    # Function `draw(self, surf, font)` — describe purpose and behavior.
 
     def draw(self, surf: pg.Surface, font: pg.font.Font):
         # Draw all sprites and HUD

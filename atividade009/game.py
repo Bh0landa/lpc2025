@@ -9,12 +9,12 @@ from systems import World
 from utils import text
 
 
-@dataclass
+
 class Scene:
     name: str
 
 
-class Game:
+
     def __init__(self):
         pg.init()
         if C.RANDOM_SEED is not None:

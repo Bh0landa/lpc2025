@@ -1,4 +1,3 @@
-# Module `game.py` — short description of this module.
 import random
 import sys
 from dataclasses import dataclass
@@ -12,7 +11,6 @@ from utils import text
 
 # Represents a simple game scene by name
 @dataclass
-# Class `Scene` — describe responsibility and main methods.
 class Scene:
     """Cena simples representada por um nome.
 
@@ -22,11 +20,9 @@ class Scene:
     name: str
 
 
-# Class `Game` — describe responsibility and main methods.
 
 
 class Game:
-    # Function `__init__(self)` — describe purpose and behavior.
     # Initialize pygame, fonts, window and the game world
     def __init__(self):
         pg.init()
@@ -41,7 +37,6 @@ class Game:
         self.scene = Scene("menu")
         self.world = World()
 
-    # Function `run(self)` — describe purpose and behavior.
     # Main game loop that processes events and updates the scene
     def run(self):
         while True:
@@ -79,7 +74,6 @@ class Game:
 
             pg.display.flip()
 
-    # Function `draw_menu(self)` — describe purpose and behavior.
     # Draw the initial menu
     def draw_menu(self):
         # Centered menu layout
